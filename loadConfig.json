@@ -1,0 +1,19 @@
+[
+  {
+    "Username": "scott",
+    "Password": "oracle",
+    "OutputDir": "outdir",
+    "TableList": [
+      "inf_subscriber",
+      "dept"
+    ]
+  },
+  {
+    "Username": "testuser",
+    "Password": "oracle",
+    "OutputDir": "",
+    "TableList": [
+      "inf_subscriberb"
+    ]
+  }
+]

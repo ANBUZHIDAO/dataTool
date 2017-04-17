@@ -1,0 +1,2 @@
+sub_id,cust_id,firstname,lastname,service_no,iccid,create_date,active_date,expire_date,create_order,oper_id,remark,job,be_id
+10000600202000,10000600202000,liangyong,yong,18874002725,6222021901011100,2016-09-25 00:00:00,2016-09-26 00:00:00,2016-09-26 08:25:30319,10000000102923,91000001,This is liangyong test data. Thanks,engineer,101
