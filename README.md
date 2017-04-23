@@ -3,17 +3,89 @@ dataTool
 # dataTool简介
     一个使用Go语言编写的，用于生成大量性能测试数据的工具，工具的目的快速，方便地构造大批量数据。
 
-    采取的方案是使用系统产生少量数据。以这少量用户数据为模板，利用模板大批量构造CSV格式的数据文件，使用SqlLoader导入Oracle数据库。MySQL数据库也有类似的 LOAD 可以导入数据。
+    采取的方案是使用系统产生少量数据。以这少量用户数据为模板，利用模板大批量构造CSV格式的数据文件，
+    使用SqlLoader导入Oracle数据库。MySQL数据库也有类似的 LOAD 可以导入数据。
 
-    实际使用中造文件的速度取决于磁盘的性能。 本人使用过程中，服务器上磁盘性能较好，而且配置了分别输出到两个磁盘上，总的速度达到了 500M/s以上。
-    实际上最耗时的步骤是在导入数据到数据库时，MySQL我没有使用过，但是Oracle的SqlLoader的速度真的不怎么快，1000多万数据，几十张表，共500多G的数据，构造只需要不到20分钟，导入Oracle数据库并重建索引，做完表分析需要几个小时。
+    实际使用中造文件的速度取决于磁盘的性能。 本人使用过程中，服务器上磁盘性能较好，
+    而且配置了分别输出到两个磁盘上，总的速度达到了 500M/s以上。
+    实际上最耗时的步骤是在导入数据到数据库时，MySQL我没有使用过，
+    但是Oracle的SqlLoader的速度真的不怎么快，1000多万数据，几十张表，共500多G的数据，
+    构造只需要不到20分钟，导入Oracle数据库并重建索引，做完表分析需要几个小时。
 
 
 ## 1、配置
+主要是3个配置文件，loadConfig.json，TableConf.json,vardefine.json  
+
+###loadConfig.json
+```json
+[
+  {
+    "Username": "scott",
+    "Password": "oracle",
+    "OutputDir": "outdir",
+    "TableList": [
+      "emp",
+      "dept"
+    ]
+  },
+  {
+    "Username": "testuser",
+    "Password": "oracle",
+    "OutputDir": "",
+    "TableList": [
+      "inf_subscriber"
+    ]
+  }
+]
+```
+很简单，一目了然就是用户名，密码，输出目录，表名  
+输出目录可以为""，此情况下默认输出到out目录。
+
+###TableConf.json
+```json
+{
+    "ColumnMap": {
+        "dept":["deptno"],
+        "emp":["empno","ename"]
+    },
+    "AliasMap": {
+        "tablename.columnname": "aliasname"
+    },
+    "ExcludeMap":{
+        "aliasname":true,
+        "columnname":true
+    },
+    "RandConfMap":{
+            "ename":[100,2,3,5],
+            "dname":[10,5,9,1],
+            "model":[10,10,10]
+    },
+    "Models":[
+        {"Value": "model","Weight": 1},
+        {"Value": "model2","Weight": 1},
+        {"Value": "model3","Weight": 1}
+    ]
+}
+```
+ColumnMap 是配置各个表的列名
+AliasMap 配置列的别名，如果有两个表有相同的列名，需要对其中一个配置别名。
+ExcludeMap 是检测冲突时，可以对其中配置的列不进行检测。
+RandConfMap 配置随机字符串初始化
+Models 配置多个不同类型的模板
+
+###vardefine.json
+```json
+{
+    "deptno":["SV6002000","10"],
+    "empno":["1000123","10"],
+    "phone_number":["188","1"]
+}
+```
+配置变量值，第二个值是针对多行记录的。如果有多行记录，则默认在当前配置值的数字值上加上第二个值作为新变量。
 
 ## 2、使用
 
-将数据库表导出为CSV格式
+将数据库表导出为CSV格式  
     go run genModel.go
     go run hello.go -s 1000 -t 5
 

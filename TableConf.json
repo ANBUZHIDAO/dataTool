@@ -1,6 +1,6 @@
 {
     "ColumnMap": {
-        "inf_subscriber":["sub_id","cust_id","service_no","iccid","firstname"],
+        "inf_subscriber":["sub_id","phone_number","firstname"],
         "dept":["deptno"],
         "emp":["empno","ename"]
     },
