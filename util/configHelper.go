@@ -83,9 +83,9 @@ func InitModels(n int) (ExistModels []Factor, ModelSlice []string){
     fmt.Println( ExistModels )
 
     for i:=0;i<n;i++{
-        n := rs.Intn( TotalWeight )  //获取随机数，根据此随机数落到某个因子范围内，取这个因子的值
+        x := rs.Intn( TotalWeight )  //获取随机数，根据此随机数落到某个因子范围内，取这个因子的值
         for _,factor := range ExistModels{
-            if n < factor.Weight{
+            if x < factor.Weight{
                 ModelSlice = append(ModelSlice,factor.Value)
                 break
             }
