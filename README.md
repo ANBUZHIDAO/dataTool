@@ -18,7 +18,7 @@
 2、使用
 
 3、详解
-
+![image](https://github.com/ANBUZHIDAO/dataTool/blob/master/picture/dataTool%E6%B5%81%E7%A8%8B%E5%9B%BE%E8%A7%A3.JPG)
 
 初始化几个Bufferstruct，在管道和线程之间组成一个循环圈，Bufferstruct中的buf是byte切片，分配足够的内存，且过程中检查长度来中止构造，
 避免运行过程中内存分配，这种方式基本是构造字符串十分高效，比string join和+高效得多。
