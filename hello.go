@@ -351,11 +351,11 @@ func ValidateStartValue(){
 
             if thisTemplate,tok := usedTemp[tablename]; tok{   //在这次构造的模板里的才检查。比如某个表需要多构造一批数据，那么只会对这个表来检查。
                 //根据TabConf，找对应模板中的根值变量，组装校验SQL所需的between and的值。
-                if _,ok := dataConfig.ColumnMap[tablename]; !ok{  //如果TableConf.json里没配置，则继续下一个循环
+                if _,ok := dataConfig.ColumnMap[tablename]; !ok{  //如果dataConfig.json里没配置，则继续下一个循环
                     continue
                 }
 
-                for _,column := range dataConfig.ColumnMap[tablename]{  //只检查TableConf.json里配置列名，差不多足够了,有的列查起来全表扫描太耗时，如inf_offering_inst的purchase_seq,需要配置在ExcludeColumn里      
+                for _,column := range dataConfig.ColumnMap[tablename]{  //只检查dataConfig.json里配置列名，差不多足够了,有的列查起来全表扫描太耗时，如inf_offering_inst的purchase_seq,需要配置在ExcludeColumn里      
                     aliasname := column
                     if _,ok := dataConfig.AliasMap[tablename+"."+column];ok{
                         aliasname = dataConfig.AliasMap[tablename+"."+column]   //可能会有别名

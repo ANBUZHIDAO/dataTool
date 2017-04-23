@@ -14,9 +14,9 @@ dataTool
 
 
 ## 1、配置
-主要是3个配置文件，loadConfig.json，TableConf.json,vardefine.json  
+主要是3个配置文件，loadConfig.json，dataConfig.json,vardefine.json  
 
-###loadConfig.json
+### loadConfig.json
 ```json
 [
   {
@@ -41,7 +41,7 @@ dataTool
 很简单，一目了然就是用户名，密码，输出目录，表名  
 输出目录可以为""，此情况下默认输出到out目录。
 
-###TableConf.json
+### dataConfig.json
 ```json
 {
     "ColumnMap": {
@@ -73,7 +73,7 @@ ExcludeMap 是检测冲突时，可以对其中配置的列不进行检测。
 RandConfMap 配置随机字符串初始化
 Models 配置多个不同类型的模板
 
-###vardefine.json
+### vardefine.json
 ```json
 {
     "deptno":["SV6002000","10"],

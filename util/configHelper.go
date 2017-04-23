@@ -59,7 +59,7 @@ type DataConfig struct{
 }
 
 func InitDataConfig() *DataConfig {
-	jsonData,_ := ioutil.ReadFile("TableConf.json")
+	jsonData,_ := ioutil.ReadFile("dataConfig.json")
     if err := json.Unmarshal(jsonData,&dataConfig); err != nil{
         panic(err)
     }
