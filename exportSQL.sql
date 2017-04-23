@@ -3,21 +3,18 @@ Set feedback off
 DECLARE  
   TYPE value_map_type IS TABLE OF varchar2(128) INDEX BY VARCHAR2(128);
   value_map value_map_type;
-  v_variable    varchar2(128);
-  filename varchar2(64);
-  key_result varchar2(4000);
-  v_number varchar2(64);
 
 PROCEDURE export_table( QueryString in varchar2) IS
   c            NUMBER; --- corsor id
   col_cnt      INTEGER; --- column total
   rec_tab      DBMS_SQL.DESC_TAB;
-  columnValue   varchar2(4000);
-  status        integer;
-  separator     varchar2(1);  --- 分隔符
-  v_file        UTL_FILE.file_type;
-  v_record_no   number ;
-  filename varchar2(64);
+  columnValue  varchar2(4000);
+  status       integer;
+  separator    varchar2(1);  --- 分隔符
+  v_file       UTL_FILE.file_type;
+  v_record_no  number ;
+  filename     varchar2(64);
+  v_variable   varchar2(128);
   TargetQueryString  varchar2(4000);
 BEGIN
   DBMS_OUTPUT.ENABLE (buffer_size=>null) ;
@@ -68,6 +65,11 @@ BEGIN
 END;
 
 begin
- 
+
+value_map('deptno') :='10'; ---- value_map是为了适用于多个表都是用同一个值去查询记录时，只改这一处变量，export_table里会做替换
+
+export_table(' select * from scott.dept r where r.deptno = ''$deptno'' ');
+export_table(' select * from scott.emp r where r.deptno =''10'' ');
+
 end;
 /

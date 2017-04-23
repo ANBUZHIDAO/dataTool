@@ -3,7 +3,6 @@ package main
 import (
     "regexp"
     "fmt"
-    "os/exec"
     "io/ioutil"
     "strings"
     "os"
@@ -12,16 +11,6 @@ import (
 )
 
 var ReplaceSlice = make([]string,0)
-var service_nunber="13104964073"
-
-func ParseArg(){
-    if len(os.Args) < 2 || len(os.Args[1]) < 8 {
-        fmt.Println("Usage: go run dataHelp.go model_number. model_number is an example inf_subscriber's number in system.")
-        os.Exit(1)
-    }
-
-    service_nunber = os.Args[1]
-}
 
 //解析table对应的用户名，构建$user.table的替换器
 func BuildTableUserRelation(){
@@ -37,7 +26,6 @@ func BuildTableUserRelation(){
 
 func main() {
 
-    ParseArg()
     BuildTableUserRelation()
 
     AbsPath,_ := filepath.Abs("source")
@@ -46,7 +34,6 @@ func main() {
     SqlBytes,_ := ioutil.ReadFile("exportSQL.sql")
     SqlString := string(SqlBytes)
     
-    ReplaceSlice = append(ReplaceSlice,"&service_nunber",service_nunber)
     fmt.Println(ReplaceSlice)
     SqlString = strings.NewReplacer(ReplaceSlice...).Replace(SqlString)
     fmt.Println( SqlString )

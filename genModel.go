@@ -13,7 +13,7 @@ import (
     "./util"
 )
 
-var dataConfig = util.GetDataConfig()
+var dataConfig = util.InitDataConfig()
 var varDefine = make(map[string][2]string)   //变量配置
 
 //将CSV文件解析为数组切片

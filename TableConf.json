@@ -1,7 +1,8 @@
 {
     "ColumnMap": {
         "inf_subscriber":["sub_id","cust_id","service_no","iccid","firstname"],
-        "dept":["deptno"]
+        "dept":["deptno"],
+        "emp":["empno","ename"]
     },
     "AliasMap": {
         "tablename.columnname": "aliasname"
@@ -11,7 +12,7 @@
         "columnname":true
     },
     "RandConfMap":{
-            "firstname":[100,2,3,5],
+            "ename":[100,2,3,5],
             "dname":[10,5,9,1],
             "model":[10,10,10]
     },
