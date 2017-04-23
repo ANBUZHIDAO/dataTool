@@ -1,30 +1,24 @@
-               dataTool
+dataTool
 ===
 # dataTool简介
     一个使用Go语言编写的，用于生成大量性能测试数据的工具，工具的目的快速，方便地构造大批量数据。
 
-    采取的方案是使用系统产生少量数据。
-以这少量用户数据为模板，利用模板大批量构造CSV格式的数据文件，
-使用SqlLoader导入Oracle数据库。 MySQL数据库也有类似的 LOAD 可以导入数据。
+    采取的方案是使用系统产生少量数据。以这少量用户数据为模板，利用模板大批量构造CSV格式的数据文件，使用SqlLoader导入Oracle数据库。MySQL数据库也有类似的 LOAD 可以导入数据。
+
+    实际使用中造文件的速度取决于磁盘的性能。 本人使用过程中，服务器上磁盘性能较好，而且配置了分别输出到两个磁盘上，总的速度达到了 500M/s以上。
+    实际上最耗时的步骤是在导入数据到数据库时，MySQL我没有使用过，但是Oracle的SqlLoader的速度真的不怎么快，1000多万数据，几十张表，共500多G的数据，构造只需要不到20分钟，导入Oracle数据库并重建索引，做完表分析需要几个小时。
 
 
-    实际使用中造文件的速度取决于磁盘的性能。 本人使用过程中，服务器上磁盘性能较好，
-而且配置了分别输出到两个磁盘上，总的速度达到了 500M/s以上。
-    实际上最耗时的步骤是在导入数据到数据库时，MySQL我没有使用过，但是Oracle的
-SqlLoader的速度真的不怎么快，1000多万数据，几十张表，共500多G的数据，构造只需要不到20分钟，
-导入Oracle数据库并重建索引，做完表分析需要几个小时。
+## 1、配置
 
-
-##1、配置
-
-##2、使用
+## 2、使用
 
 将数据库表导出为CSV格式
-go run genModel.go
-go run hello.go -s 1000 -t 5
+    go run genModel.go
+    go run hello.go -s 1000 -t 5
 
 
-##3、模板的产生
+## 3、模板的产生
 
 deptno,dname,loc,
 10,ACCOUNTING,NEW YORK,
@@ -49,7 +43,7 @@ repslice: [  0            1          0                   ]
 
 
 
-##4、文件构造详解
+## 4、文件构造详解
 
 ![image](https://github.com/ANBUZHIDAO/dataTool/blob/master/picture/dataTool%E6%B5%81%E7%A8%8B%E5%9B%BE%E8%A7%A3.JPG)
 
@@ -67,7 +61,7 @@ buildBytes 负责构造字符串。
 buildBytes协程可根据配置启动多个，bufferToFile只有1个。
 buildBytes构造完后将Bufferstruct.endFlag置为true，bufferToFile根据接收到的endFlag数量判断是否结束，如果已全部结束，写入一个消息到complete管道，来通知main主程序。
 
-##5、SQLLoader导入
+## 5、SQLLoader导入
 
 SqlLoader导入有2种方式，传统路径导入、直接路径导入。两种方式具体的可以自己找资料。
 
