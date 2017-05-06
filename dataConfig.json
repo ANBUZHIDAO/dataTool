@@ -1,7 +1,7 @@
 {
     "ColumnMap": {
         "inf_subscriber":["sub_id","phone_number","firstname"],
-        "dept":["deptno"],
+        "dept":["deptno","dname"],
         "emp":["empno","ename"]
     },
     "AliasMap": {
@@ -12,9 +12,9 @@
         "columnname":true
     },
     "RandConfMap":{
-            "ename":[100,2,3,5],
-            "dname":[10,5,9,1],
-            "model":[10,10,10]
+            "ename":["100","2","3","default"],
+            "dname":["10","5","9","chinese"],
+            "model":["10","10","10","uppers"]
     },
     "Models":[
         {"Value": "model","Weight": 1},

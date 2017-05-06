@@ -1,0 +1,4 @@
+empno,ename,job,mgr,hiredate,sal,comm,deptno,
+1000123${empno},${ename},MANAGER,1000133${empno1},1981-06-09 00:00:00,2450,,SV6002000${deptno},
+1000133${empno1},${ename},PRESIDENT,,1981-11-17 00:00:00,5000,,SV6002000${deptno},
+1000143${empno2},${ename},CLERK,1000123${empno},1982-01-23 00:00:00,1300,,SV6002000${deptno},

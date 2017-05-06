@@ -67,11 +67,11 @@ dataTool
     ]
 }
 ```
-ColumnMap 是配置各个表的列名
-AliasMap 配置列的别名，如果有两个表有相同的列名，需要对其中一个配置别名。
-ExcludeMap 是检测冲突时，可以对其中配置的列不进行检测。
-RandConfMap 配置随机字符串初始化
-Models 配置多个不同类型的模板
+ColumnMap 是配置各个表的列名  
+AliasMap 配置列的别名，如果有两个表有相同的列名，需要对其中一个配置别名。  
+ExcludeMap 是检测冲突时，可以对其中配置的列不进行检测。  
+RandConfMap 配置随机字符串初始化  
+Models 配置多个不同类型的模板  
 
 ### vardefine.json
 ```json
@@ -86,18 +86,18 @@ Models 配置多个不同类型的模板
 ## 2、使用
 
 将数据库表导出为CSV格式  
-    go run genModel.go
+    go run genModel.go  
     go run hello.go -s 1000 -t 5
 
 
 ## 3、模板的产生
-
-deptno,dname,loc,
-10,ACCOUNTING,NEW YORK,
+原始内容：
+    deptno,dname,loc,
+    10,ACCOUNTING,NEW YORK,
 
 生成的模板：
-deptno,dname,loc,
-SV6002000${deptno},ACCOUNTING,NEW YORK,
+    deptno,dname,loc,
+    SV6002000${deptno},ACCOUNTING,NEW YORK,
 
 主要的变化是deptno根据配置的变量变为 SV6002000${deptno}。  
 这里前面是变量前缀，后面才是根据入参不断变化的值，也即所有的变量值得后8位时同步变化的。
@@ -107,10 +107,11 @@ SV6002000${deptno},ACCOUNTING,NEW YORK,
 另外emp表里的deptno字段也同步变化的，变为 SV6002000${deptno}
 
 
-构造时将模板解析为：
-strslice: [ 'SV6002000' 'deptno' ',ACCOUNTING,NEW YORK,' ]
-repslice: [  0            1          0                   ]
-
+hello.go构造时将模板解析为：
+```
+    strslice: [ 'SV6002000' 'deptno' ',ACCOUNTING,NEW YORK,' ]
+    repslice: [  0            1          0                   ]
+```
 构造时repslice中对应的值是0就直接复制原始字符串，是1就替换变量。
 
 
@@ -120,7 +121,7 @@ repslice: [  0            1          0                   ]
 ![image](https://github.com/ANBUZHIDAO/dataTool/blob/master/picture/dataTool%E6%B5%81%E7%A8%8B%E5%9B%BE%E8%A7%A3.JPG)
 
 初始化几个Bufferstruct，在管道和线程之间组成一个循环圈，Bufferstruct中的buf是byte切片，分配足够的内存，且过程中检查长度来中止构造，
-避免运行过程中内存分配，这种方式基本是构造字符串十分高效，比string join和+高效得多。
+避免运行过程中内存分配,避免GC，这种方式基本是构造字符串十分高效，比string join和+高效得多。
 
 使用了Go语言的goroutine，
 bufferToFile 负责将构造好的数据写入文件。

@@ -1,5 +1,2 @@
-deptno,dname,loc
-SV6002000${deptno},ACCOUNTING,NEW YORK
-SV6002010${deptno1},RESEARCH,DALLAS
-SV6002020${deptno2},SALES,CHICAGO
-SV6002030${deptno3},OPERATIONS,BOSTON
+deptno,dname,loc,
+SV6002000${deptno},${dname},NEW YORK,

@@ -54,7 +54,7 @@ type DataConfig struct{
     ColumnMap map[string][]string
     AliasMap map[string]string
     ExcludeMap  map[string]bool  //使用map判断是否包含在这里面
-    RandConfMap map[string][5]int //随机方式，初始化长度，最小长度，最大长度，模式(0:lowers,1:uppers,2:digits,3:alnums,4:alphas,5:大写开头的字母)
+    RandConfMap map[string][4]string //初始化长度，最小长度，最大长度，模式(lowers,uppers,digits,alnums,alphas,default)
     Models []Factor
 }
 
