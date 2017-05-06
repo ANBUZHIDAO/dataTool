@@ -53,6 +53,9 @@ func RandString(min string,max string, mod string) string{
 
     dicts := map[string]string{"lowers":lowers,"uppers":uppers,"digits":digits,"alnums":alnums,"alphas":alphas,"chinese":chinese}
 
+    EnumMap := dataConfig.EnumlistMap
+    Enumlist,ok := EnumMap[mod]
+
     min_size,_ := strconv.Atoi(min)
     max_size,_ := strconv.Atoi(max)
 
@@ -73,6 +76,9 @@ func RandString(min string,max string, mod string) string{
             x := rs.Intn(length/3)   
             result = result + chinese[x*3:x*3+3]    //汉字在utf-8里是占用3个byte的
         }
+    case ok:
+        length := len(Enumlist)
+        result = Enumlist[rs.Intn(length)]
     default :                                     //默认是首字母大写，后面字母小写的方式
         result = string(uppers[rs.Intn(26)])
         for i:=1; i<n; i++{

@@ -1,7 +1,7 @@
 {
     "ColumnMap": {
         "inf_subscriber":["sub_id","phone_number","firstname"],
-        "dept":["deptno","dname"],
+        "dept":["deptno","dname","loc"],
         "emp":["empno","ename"]
     },
     "AliasMap": {
@@ -14,7 +14,10 @@
     "RandConfMap":{
             "ename":["100","2","3","default"],
             "dname":["10","5","9","chinese"],
-            "model":["10","10","10","uppers"]
+            "loc":["100","10","10","province"]
+    },
+    "EnumlistMap":{
+            "province":["Henan","Henan","Shandong","Shandong","Jiangsu","Hubei"]
     },
     "Models":[
         {"Value": "model","Weight": 1},

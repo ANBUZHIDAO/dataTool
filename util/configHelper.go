@@ -55,6 +55,7 @@ type DataConfig struct{
     AliasMap map[string]string
     ExcludeMap  map[string]bool  //使用map判断是否包含在这里面
     RandConfMap map[string][4]string //初始化长度，最小长度，最大长度，模式(lowers,uppers,digits,alnums,alphas,default)
+    EnumlistMap map[string][]string
     Models []Factor
 }
 
