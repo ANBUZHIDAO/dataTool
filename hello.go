@@ -10,6 +10,7 @@ import (
     "os/exec"
     "regexp"
     "flag"
+    "strconv"
     "./util"
 )
 
@@ -78,7 +79,7 @@ func parseTemplate(tempStr string)(*MyTemplate){
     var result = new(MyTemplate)
 
     header := tempStr[:strings.Index(tempStr, "\n")]
-    header = strings.TrimSuffix(header,",")
+    result.header = strings.TrimSuffix(header,",")
     result.content = tempStr[strings.Index(tempStr, "\n")+1:]
 
     strArray := strings.Split(result.content,"${")
@@ -258,7 +259,7 @@ func main() {
 
         t1 := time.Now()
         fmt.Printf("This Batch cost time  =%v, Begin to Load Data.\n",t1.Sub(t0))
-        //LoadData()
+        LoadData()
     }
 
     LoadendTime := time.Now()
@@ -293,12 +294,44 @@ APPEND
 into table ${username}.${tablename}
 fields TERMINATED BY "," optionally enclosed by '"'
 (${header})`
-
+//新版本的LoadData，并行起2个导入协程
 func LoadData() {
     util.RebuildDir("log")
 
     if TotalQua <= 500000{              // 50万以下，使用传统路径
         LoadControl = TestControl
+    }
+
+    var LoadComplete = make(chan int)
+    var loadCh = make(chan string,4)
+    var RoutineNumber = 2
+
+    for i:=1;i<= RoutineNumber;i++{
+        n := i    //必须引入局部变量，否则下面的logfile编号都是同一个值。 
+        go func(){
+
+            err := os.Setenv("NLS_DATE_FORMAT","YYYY-MM-DD hh24:mi:ss")
+            err = os.Setenv("NLS_TIMESTAMP_FORMAT","YYYY-MM-DD hh24:mi:ssSSS")
+            logfile,err := os.OpenFile("log/load"+ strconv.Itoa(n) +".log",os.O_WRONLY|os.O_CREATE,0664)   
+            if err != nil {   
+                panic(err)
+            }
+
+            for {
+                LoaderCommand,OK := <-loadCh        //获取Load管道里的命令
+                if !OK{           //如果没有了，表示已经完了，退出Load
+                    LoadComplete <- 1  
+                    break;
+                }
+
+                cmd := exec.Command("sqlldr",LoaderCommand)
+                cmd.Stdout = logfile
+                if err := cmd.Run(); err != nil{
+                    fmt.Println(err)
+                }
+            }            
+ 
+        }()
     }
 
     //For循环开始load
@@ -327,15 +360,17 @@ func LoadData() {
             }
             tempctl.Close()
 
-            err = os.Setenv("NLS_DATE_FORMAT","YYYY-MM-DD hh24:mi:ss")
-            err = os.Setenv("NLS_TIMESTAMP_FORMAT","YYYY-MM-DD hh24:mi:ssSSS")
-            cmd := exec.Command("sqlldr",LoaderCommand)
-            cmd.Stdout = os.Stdout
-            if err := cmd.Run(); err != nil{
-                fmt.Println(err)
-            }            
+            loadCh <- LoaderCommand
+            
         }
     }
+
+    close(loadCh)
+
+    for i:=1;i<= RoutineNumber;i++{
+        <- LoadComplete
+    }
+
 }
 
 //根据要造哪些表，拼接关键根值，查询数据库，如果有冲突则提示并终止
@@ -392,3 +427,52 @@ func ValidateStartValue(){
     }   
 }
 
+
+
+
+// Old version loaddata
+/*
+func LoadData() {
+    util.RebuildDir("log")
+
+    if TotalQua <= 500000{              // 50万以下，使用传统路径
+        LoadControl = TestControl
+    }
+
+    //For循环开始load
+    for _,config := range LoadConfig{
+        for _,table := range config.TableList{
+            LoaderCommand := config.Username + "/" + config.Password +" control=log/"+table+".ctl log=log/"+table+".log"
+            
+            if _,ok := usedTemp[table]; !ok{
+                continue
+            }
+            header := usedTemp[table][0]
+
+            infile := filepath.Join(config.OutputDir, table+".out")
+            fmt.Println(infile)
+            if _,err := os.Stat(infile); err != nil {
+                continue
+            }
+
+            fmt.Println(LoaderCommand)
+            
+            rep := strings.NewReplacer("${tablename}",table,"${username}",config.Username,"${header}",header,"${infile}",infile)
+            tempctl,err := os.OpenFile("log/"+ table +".ctl",os.O_WRONLY|os.O_CREATE|os.O_TRUNC,0664)
+            _,err = rep.WriteString(tempctl,LoadControl)    
+            if err != nil {   
+                panic(err)
+            }
+            tempctl.Close()
+
+            err = os.Setenv("NLS_DATE_FORMAT","YYYY-MM-DD hh24:mi:ss")
+            err = os.Setenv("NLS_TIMESTAMP_FORMAT","YYYY-MM-DD hh24:mi:ssSSS")
+            cmd := exec.Command("sqlldr",LoaderCommand)
+            cmd.Stdout = os.Stdout
+            if err := cmd.Run(); err != nil{
+                fmt.Println(err)
+            }            
+        }
+    }
+}
+*/
