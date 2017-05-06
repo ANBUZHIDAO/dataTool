@@ -12,6 +12,8 @@ dataTool
     但是Oracle的SqlLoader的速度真的不怎么快，1000多万数据，几十张表，共500多G的数据，
     构造只需要不到20分钟，导入Oracle数据库并重建索引，做完表分析需要几个小时。
 
+    1.8T左右的数据文件，分6个批次导入，构造+导入+重建索引+表分析耗时16个小时左右。
+
 
 ## 1、配置
 主要是3个配置文件，loadConfig.json，dataConfig.json,vardefine.json  

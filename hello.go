@@ -334,7 +334,8 @@ func LoadData() {
         }()
     }
 
-    //For循环开始load
+    loadCmds := make([]string,0)
+    //For循环开始构造Load所需命令和控制文件
     for _,config := range LoadConfig{
         for _,table := range config.TableList{
             LoaderCommand := config.Username + "/" + config.Password +" control=log/"+table+".ctl log=log/"+table+".log"
@@ -360,8 +361,18 @@ func LoadData() {
             }
             tempctl.Close()
 
-            loadCh <- LoaderCommand
-            
+            loadCmds = append(loadCmds,LoaderCommand)   //先放到数组切片里，以便做一些打乱顺序等操作  
+        }
+    }
+
+    //目前先采用2个Load协程，先采用首尾依次加入管道的方式。一般情况下不同用户有不同的表空间数据文件，避免两个协程同时加载数据到同一个表空间
+    j := len(loadCmds)-1
+
+    for i:=0;i<=j;i++{
+        loadCh <- loadCmds[i]
+        if j != i {
+           loadCh <- loadCmds[j]
+           j-- 
         }
     }
 
@@ -426,8 +437,6 @@ func ValidateStartValue(){
         }
     }   
 }
-
-
 
 
 // Old version loaddata
