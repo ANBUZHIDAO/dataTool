@@ -116,7 +116,12 @@ Models      配置多个不同类型的模板，Weight是模板所占比重
 2、 go run genModel.go   ----  产生模板
 3、 go run hello.go -s 1000 -t 5   ----  生成数据并导入   -s startvalue, 变量起始值  -t TotalQua 需要造的记录数
 ```
-## 3、模板的产生
+
+CSV原始表数据文件，使用者自己想怎么搞了。。。
+针对Oracle数据库，提供了 exportSQL.sql 使用 UTL_FILE 导出 CSV文件到某个目录
+
+
+## 4、模板的产生
 genModel.go产生模板时：
 原始内容：
 ```
@@ -167,7 +172,7 @@ hello.go构造时将模板解析为：
 
 
 
-## 4、SQLLoader导入
+## 5、SQLLoader导入
 
 SqlLoader导入有2种方式，传统路径导入、直接路径导入。两种方式具体的可以自己找资料。
 
