@@ -12,7 +12,7 @@ dataTool
     但是Oracle的SqlLoader的速度真的不怎么快，1000多万数据，几十张表，共500多G的数据，
     构造只需要不到20分钟，导入Oracle数据库并重建索引，做完表分析需要几个小时。
 
-    1.8T左右的数据文件，分6个批次导入，构造+导入+重建索引+表分析耗时16个小时左右。
+    之前未并行SqlLoader导入的情况下，1.8T左右的数据文件，分6个批次导入，构造+导入+重建索引+表分析耗时16个小时左右。
 
 ## 1、文件构造主流程简介
 
@@ -174,7 +174,7 @@ hello.go构造时将模板解析为：
 
 ## 5、SQLLoader导入
 
-当前是默认起6个协程执行SqlLoader并行导入，可调整LoadData函数中 var RoutineNumber = 6的值增大活调小并行数量
+当前是默认起6个协程执行SqlLoader并行导入，可调整LoadData函数中 var RoutineNumber = 6的值增大活调小并行数量  
 如下面是测试时的一个最终的默认输出（未启动数据库实例，所以 exit status 1）
 可以看到只有3个文件的情况下，3，4,5都直接结束未执行导入。
 ```bash
@@ -200,7 +200,7 @@ oracle@oracle1:~/dataTool>
 
 SqlLoader导入有2种方式，传统路径导入、直接路径导入。两种方式具体的可以自己找资料。
 
-http://docs.oracle.com/database/122/nav/portal_booklist.htm 
+http://docs.oracle.com/database/122/nav/portal_booklist.htm  
 Oracle官方文档列表，其中的 Utilities 详细讲述了 SqlLoader。
 ```
 目前默认的直接路径导入的控制文件格式是
