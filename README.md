@@ -117,7 +117,7 @@ Models      配置多个不同类型的模板，Weight是模板所占比重
 3、 go run hello.go -s 1000 -t 5   ----  生成数据并导入   -s startvalue, 变量起始值  -t TotalQua 需要造的记录数
 ```
 
-CSV原始表数据文件，使用者自己想怎么搞了。。。
+CSV原始表数据文件，使用者自己想怎么搞了。。。  
 针对Oracle数据库，提供了 exportSQL.sql 使用 UTL_FILE 导出 CSV文件到某个目录
 
 
@@ -173,6 +173,30 @@ hello.go构造时将模板解析为：
 
 
 ## 5、SQLLoader导入
+
+当前是默认起6个协程执行SqlLoader并行导入，可调整LoadData函数中 var RoutineNumber = 6的值增大活调小并行数量
+如下面是测试时的一个最终的默认输出（未启动数据库实例，所以 exit status 1）
+可以看到只有3个文件的情况下，3，4,5都直接结束未执行导入。
+```bash
+This Batch cost time  =1.24771ms, Begin to Load Data.
+outdir/emp.out
+outdir/dept.out
+out/inf_subscriber.out
+LoadData Goroutine 6 execute: scott/oracle control=log/dept.ctl log=log/dept.log
+LoadData Goroutine 1 execute: scott/oracle control=log/emp.ctl log=log/emp.log
+LoadData Goroutine 2 execute: testuser/oracle control=log/inf_subscriber.ctl log=log/inf_subscriber.log
+LoadData Goroutine 3 End.
+LoadData Goroutine 4 End.
+LoadData Goroutine 5 End.
+exit status 1
+LoadData Goroutine 6 End.
+exit status 1
+LoadData Goroutine 2 End.
+exit status 1
+LoadData Goroutine 1 End.
+Total data created and load cost time  =79.523956ms
+oracle@oracle1:~/dataTool> 
+```
 
 SqlLoader导入有2种方式，传统路径导入、直接路径导入。两种方式具体的可以自己找资料。
 

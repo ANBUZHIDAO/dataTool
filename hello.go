@@ -9,6 +9,7 @@ import (
     "path/filepath"
     "os/exec"
     "regexp"
+    "math/rand"
     "flag"
     "strconv"
     "./util"
@@ -304,7 +305,7 @@ func LoadData() {
 
     var LoadComplete = make(chan int)
     var loadCh = make(chan string,4)
-    var RoutineNumber = 2
+    var RoutineNumber = 6
 
     for i:=1;i<= RoutineNumber;i++{
         n := i    //必须引入局部变量，否则下面的logfile编号都是同一个值。 
@@ -320,9 +321,12 @@ func LoadData() {
             for {
                 LoaderCommand,OK := <-loadCh        //获取Load管道里的命令
                 if !OK{           //如果没有了，表示已经完了，退出Load
+                    fmt.Println("LoadData Goroutine " + strconv.Itoa(n) + " End." )
                     LoadComplete <- 1  
                     break;
                 }
+
+                fmt.Println("LoadData Goroutine " + strconv.Itoa(n) + " execute: " + LoaderCommand)
 
                 cmd := exec.Command("sqlldr",LoaderCommand)
                 cmd.Stdout = logfile
@@ -350,8 +354,6 @@ func LoadData() {
             if _,err := os.Stat(infile); err != nil {
                 continue
             }
-
-            fmt.Println(LoaderCommand)
             
             rep := strings.NewReplacer("${tablename}",table,"${username}",config.Username,"${header}",header,"${infile}",infile)
             tempctl,err := os.OpenFile("log/"+ table +".ctl",os.O_WRONLY|os.O_CREATE|os.O_TRUNC,0664)
@@ -365,15 +367,19 @@ func LoadData() {
         }
     }
 
-    //目前先采用2个Load协程，先采用首尾依次加入管道的方式。一般情况下不同用户有不同的表空间数据文件，避免两个协程同时加载数据到同一个表空间
-    j := len(loadCmds)-1
+    //目前默认6个协程，简单采用随机置换算法打乱LoaderCommand顺序。一般情况下不同用户有不同的表空间数据文件，避免多个协程同时加载数据到同一个表空间
+    N := len(loadCmds)
+    var rs = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-    for i:=0;i<=j;i++{
+    for i:=0; i< N; i++{
+        tempString := loadCmds[i]
+        j := rs.Intn(N)
+        loadCmds[i] = loadCmds[j]
+        loadCmds[j] = tempString
+    }
+    //打乱顺序后压入管道
+    for i:=0; i< N; i++{
         loadCh <- loadCmds[i]
-        if j != i {
-           loadCh <- loadCmds[j]
-           j-- 
-        }
     }
 
     close(loadCh)
