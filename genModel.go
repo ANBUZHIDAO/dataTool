@@ -66,6 +66,10 @@ func GetKeyValue(dir string) {
                         continue          //不等于根值列配置里的列名，继续
                     }
 
+                    if _,ok := dataConfig.AliasMap[tablename + "." + column]; ok {
+                        column = dataConfig.AliasMap[tablename + "." + column]     //如果有别名配置，则值改为别名
+                    }
+
                     _,varMatch := varDefine[column];
                     _,RandMatch := dataConfig.RandConfMap[column];
                     if !varMatch && !RandMatch {
@@ -73,10 +77,6 @@ func GetKeyValue(dir string) {
                         os.Exit(1)
                     }
 
-                    if _,ok := dataConfig.AliasMap[tablename + "." + column]; ok {
-                        column = dataConfig.AliasMap[tablename + "." + column]     //如果有别名配置，则值改为别名
-                    }
-    
                     for j,record := range RecordsMap[tablename]{
                         if varMatch{
                             varName,preVar := column,column   //变量名初始化为列名，这里变量名对应vardefine.json里的配置
@@ -85,19 +85,19 @@ func GetKeyValue(dir string) {
                                 varName = column + strconv.Itoa(j)
                                 if j > 1{
                                     preVar = column + strconv.Itoa(j-1)
+                                }
+
+                                if _,ok := varDefine[varName];!ok{
+                                    PreVarStr := varDefine[preVar][0]
+                                    loc := re.FindStringIndex(PreVarStr)
+
+                                    var2,_ := strconv.Atoi(PreVarStr[loc[0]:loc[1]])
+                                    growth,_ := strconv.Atoi(varDefine[column][1])
+                                    curVarStr := PreVarStr[:loc[0]] + strconv.Itoa(var2+growth)
+                                    fmt.Println(varName +" Grow Automatic: " + curVarStr)
+
+                                    varDefine[varName] = [2]string{curVarStr,varDefine[column][1]}
                                 } 
-                            }
-
-                            if _,ok := varDefine[varName];!ok{
-                                PreVarStr := varDefine[preVar][0]
-                                loc := re.FindStringIndex(PreVarStr)
-
-                                var2,_ := strconv.Atoi(PreVarStr[loc[0]:loc[1]])
-                                growth,_ := strconv.Atoi(varDefine[column][1])
-                                curVarStr := PreVarStr[:loc[0]] + strconv.Itoa(var2+growth)
-                                fmt.Println(varName +" Grow Automatic: " + curVarStr)
-
-                                varDefine[varName] = [2]string{curVarStr,varDefine[column][1]}
                             }
 
                             ValueMap[record[i]] = varDefine[varName][0]+"${" + varName + "}"

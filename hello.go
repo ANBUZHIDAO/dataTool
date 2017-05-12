@@ -295,7 +295,7 @@ APPEND
 into table ${username}.${tablename}
 fields TERMINATED BY "," optionally enclosed by '"'
 (${header})`
-//新版本的LoadData，并行起2个导入协程
+//新版本的LoadData，并行起6个导入协程
 func LoadData() {
     util.RebuildDir("log")
 
@@ -428,7 +428,7 @@ func ValidateStartValue(){
                         validateSQL := rep.Replace( ValidateString )
 
                         fmt.Println(validateSQL)
-/*
+
                         result := resultReg.FindString(util.ExecSQLPlus(validateSQL))
                         result = strings.TrimPrefix(result,"ResultStart:")
                         result = strings.TrimSuffix(result,":ResultEnd")
@@ -436,58 +436,10 @@ func ValidateStartValue(){
                         if result != "0"{
                             fmt.Printf("ERROR:There are some duplicate records in table %s, Please check use above SQL.\n", tablename)
                             os.Exit(1)
-                        }*/
+                        }
                     }                         
                 }
             }
         }
     }   
 }
-
-
-// Old version loaddata
-/*
-func LoadData() {
-    util.RebuildDir("log")
-
-    if TotalQua <= 500000{              // 50万以下，使用传统路径
-        LoadControl = TestControl
-    }
-
-    //For循环开始load
-    for _,config := range LoadConfig{
-        for _,table := range config.TableList{
-            LoaderCommand := config.Username + "/" + config.Password +" control=log/"+table+".ctl log=log/"+table+".log"
-            
-            if _,ok := usedTemp[table]; !ok{
-                continue
-            }
-            header := usedTemp[table][0]
-
-            infile := filepath.Join(config.OutputDir, table+".out")
-            fmt.Println(infile)
-            if _,err := os.Stat(infile); err != nil {
-                continue
-            }
-
-            fmt.Println(LoaderCommand)
-            
-            rep := strings.NewReplacer("${tablename}",table,"${username}",config.Username,"${header}",header,"${infile}",infile)
-            tempctl,err := os.OpenFile("log/"+ table +".ctl",os.O_WRONLY|os.O_CREATE|os.O_TRUNC,0664)
-            _,err = rep.WriteString(tempctl,LoadControl)    
-            if err != nil {   
-                panic(err)
-            }
-            tempctl.Close()
-
-            err = os.Setenv("NLS_DATE_FORMAT","YYYY-MM-DD hh24:mi:ss")
-            err = os.Setenv("NLS_TIMESTAMP_FORMAT","YYYY-MM-DD hh24:mi:ssSSS")
-            cmd := exec.Command("sqlldr",LoaderCommand)
-            cmd.Stdout = os.Stdout
-            if err := cmd.Run(); err != nil{
-                fmt.Println(err)
-            }            
-        }
-    }
-}
-*/
