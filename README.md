@@ -118,7 +118,20 @@ Models      配置多个不同类型的模板，Weight是模板所占比重
 ```
 
 CSV原始表数据文件，使用者自己想怎么搞了。。。  
-针对Oracle数据库，提供了 exportSQL.sql 使用 UTL_FILE 导出 CSV文件到某个目录
+针对Oracle数据库，提供了 exportSQL.sql 使用 UTL_FILE 导出 CSV文件到某个目录。
+
+```
+golang没有官方的Oracle 数据库连接驱动，而且现有的使用OCI的方式配置过于麻烦。 本工具只是个造数据的工具。。
+采用的方式是执行sqlplus来执行Oracle SQL语句。
+在util/tools.go 中有ExecSQLPlus函数。返回标准输出。
+
+dataHrlp.go是调用ExecSQLPlus函数执行exportSQL.sql的帮助工具。使之不必通过其他客户端执行。
+当然也可以选择通过PLSQL中执行，来导出CSV文件。
+
+在hello.go中执行检测冲突的语句时，使用前后加特征字符串 ResultStart:'||count(*)||':ResultEnd 的方式，
+然后截取中间的部分获得执行结果。
+
+```
 
 
 ## 4、模板的产生
