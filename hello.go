@@ -39,6 +39,8 @@ type MyTemplate struct{
     content string
     strslice []string
     repslice []int      //使用什么替换方式，0为原始，不替换，1为替换变量，2为随机字符串
+    length int          //使用变量替换后的模板长度，用于控制判断是否需要将Bufferstruct压入WriteCh，以写入磁盘。
+                        // length并不能准确计算出模板会有多长，因为有随机字符串以及枚举值的方式
 }
 
 var models = make(map[string] (map[string]*MyTemplate))
@@ -82,12 +84,14 @@ func parseTemplate(tempStr string)(*MyTemplate){
     header := tempStr[:strings.Index(tempStr, "\n")]
     result.header = strings.TrimSuffix(header,",")
     result.content = tempStr[strings.Index(tempStr, "\n")+1:]
+    result.length = 0
 
     strArray := strings.Split(result.content,"${")
     for _,v := range strArray{
         if(!strings.Contains(v,"}")){
             result.strslice = append(result.strslice,v)
             result.repslice = append(result.repslice,0)
+            result.length = result.length + len(v)
         } else {
             varName,repMethod := v[:strings.Index(v,"}")],1
 
@@ -97,14 +101,19 @@ func parseTemplate(tempStr string)(*MyTemplate){
 
             result.strslice = append(result.strslice,varName)
             result.repslice = append(result.repslice,repMethod)
+            result.length = result.length + 8
 
             result.strslice = append(result.strslice,v[strings.Index(v,"}")+1:])
             result.repslice = append(result.repslice,0)
+            result.length = result.length + len(v[strings.Index(v,"}")+1:])
         }
     }
 
     //fmt.Printf("strSlice =%v\n",result.strslice)
     //fmt.Printf("repSlice =%v\n",result.repslice)
+    result.length = result.length + 200   // 由于length并不能准确计算出模板会有多长，因此将计算出的值增加200，以避免出错。如果出现那种造200以上的随机字符串活枚举字符串之类的，我也只能无语了，改大这个值吧。
+    fmt.Println("MyTemplate length: " + strconv.Itoa(result.length))
+
     return result
 }
 
@@ -203,7 +212,7 @@ func buildBytes( dirname string,tablelist []string, from int,to int) {
                 }
             }
 
-            if( SliceCap - m <= 30000 ){         //当剩余长度小于30000的时候就写入文件
+            if( SliceCap - m <= 30000 ){         //当剩余长度小于30000的时候就写入文件，暂未启用根据thisTemplate.length判断
                 tempStruct.filename = filepath.Join(dirname,table+".out") 
                 writeCh <- tempStruct              
                 tempStruct = <-buildCh
@@ -395,7 +404,7 @@ func ValidateStartValue(){
     var ValidateString = `select 'ResultStart:'||count(*)||':ResultEnd' from $username.$tablename r where r.$column  between '$from' and '$to';`
    
     v_from,v_to := string(util.Itoa(Startvalue)),string(util.Itoa(Startvalue + TotalQua));
-	//resultReg := regexp.MustCompile("ResultStart:.*:ResultEnd")          //给结果前后加上特定的值，以便于通过正则表达式从SQLPlus执行结果中取出
+	resultReg := regexp.MustCompile("ResultStart:.*:ResultEnd")          //给结果前后加上特定的值，以便于通过正则表达式从SQLPlus执行结果中取出
     
     for _,config := range LoadConfig{
         for _,tablename := range config.TableList{
@@ -433,7 +442,8 @@ func ValidateStartValue(){
                         result = strings.TrimPrefix(result,"ResultStart:")
                         result = strings.TrimSuffix(result,":ResultEnd")
 
-                        if result != "0"{
+                        if result != "0" && result != "'||count(*)||'"{
+                            fmt.Println(result)
                             fmt.Printf("ERROR:There are some duplicate records in table %s, Please check use above SQL.\n", tablename)
                             os.Exit(1)
                         }

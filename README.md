@@ -19,11 +19,13 @@ dataTool
 ![image](https://github.com/ANBUZHIDAO/dataTool/blob/master/picture/dataTool%E6%B5%81%E7%A8%8B%E5%9B%BE%E8%A7%A3.JPG)
 
 主流程在hello.go中，使用了Go语言的goroutine。
-初始化几个Bufferstruct，在管道和线程之间组成一个循环圈，Bufferstruct中的buf是byte切片，分配足够的内存，  
-避免运行过程中内存分配,避免GC，这种方式构造字符串十分高效，比string join和+高几百倍。
+初始化几个Bufferstruct，在管道和线程之间组成一个循环圈。  
+目前Bufferstruct是4个，因为我个人使用过程中，最多也就2个不同的物理磁盘，只启动过2个buildBytes线程。 4个Bufferstruct足够了。  
+Bufferstruct中的buf是byte切片，分配足够的内存，避免运行过程中内存分配,避免GC。  
+这种方式构造字符串十分高效，比string join和+高几百倍。
 
 buildBytes 只负责构造字符串，byte切片buf中不断增长，剩余长度小于30000时，将Bufferstruct写入。 ---可能存在很大的模板，超过30K的话，需要调大这个值。。   
-bufferToFile 负责将构造好的数据写入文件。全部完成后通知主程序。
+bufferToFile 负责将构造好的数据写入文件。全部完成后通知主程序。造文件是一个表文件一个表文件地写入，顺序IO。
 
 buildBytes协程可根据配置启动多个，bufferToFile只有1个。  
 
