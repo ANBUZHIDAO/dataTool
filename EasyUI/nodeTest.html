@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Vue DataTool</title>
+    <link rel="stylesheet" type="text/css" href="js/themes/default/easyui.css" />
+    <link rel="stylesheet" type="text/css" href="js/themes/icon.css" />
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/jquery.easyui.min.js"></script>
+    <script src="js/vue.js"></script>
+</head>
+<body>
+
+<div id="app">
+  <div> 
+    <span class="panel-header" style="border-radius:2px;padding:2px;font-family:KaiTi;margin-left:4px;margin-right:10px;weight:140px">节点地址</span>
+    <span class="textbox" style="width: 160px;padding-left:10px">
+      <input class="textbox-text validatebox-text" placeholder="IP:Port,如192.18.2.24:4412" style="width: 150px;" type="text" v-model="newAddr">
+    </span>
+
+    <a class="easyui-linkbutton" iconCls="icon-ok" v-on:click="NewConnect()" style="width:100px;height:32px;margin-left:50px;">Connect</a> 
+  </div>
+
+  <div class="panel-header panel-title" style="width: 99%">应用节点</div>
+  <table class="datagrid-header datagrid-htable" style="width: 60%" border="0">
+    <tbody>
+      <tr class="datagrid-header-row">
+        <td style="width:20%">
+          <div class="datagrid-cell " > 节点 </div>
+        </td>
+        <td style="width:20%">
+          <div class="datagrid-cell" > 状态 </div>
+        </td>
+        <td style="width:60%">
+          <div class="datagrid-cell" > 操作 </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="datagrid-body datagrid-btable" style="width: 60%;border:1px solid #ABABAB;">
+    <tbody>
+      <tr class="datagrid-row" v-for="(nodeConfig,index) in nodeList" v-on:click="ChangeClicked(nodeConfig)">
+        <td style="width:20%">
+          <div style="height:auto;" class="datagrid-cell"> {{nodeConfig.NodeAddr}} </div>
+        </td>
+        <td style="width:20%">
+          <div style="text-align:center;height:auto;" class="datagrid-cell"> OK </div>
+        </td>
+        <td style="width:60%">
+          <div style="text-align:center;height:auto;" class="datagrid-cell">
+            <button class="l-btn l-btn-small" v-on:click="CloseConnect(nodeConfig.NodeAddr)">
+              <span class="l-btn-left"> <span class="l-btn-text">断开连接</span></span>
+            </button>
+          </div>
+        </td>
+      </tr>
+
+    </tbody>
+  </table>
+ 
+  <a class="easyui-linkbutton" v-on:click="RefreshNodes()" style="width:80px;height:28px">刷新</a>
+
+  <div class="panel-header panel-title" style="width: 99%">节点详情</div>
+  <div v-if="selectedNodeConfig != null"> 
+    <span class="textbox textbox-invalid easyui-fluid" style="width: 191px;margin-top: 10px;" >
+      <input type="text" class="textbox-text" style="width: 183px; margin-top:0px;" v-bind:value="selectedNodeConfig.NodeAddr" disabled="true"> 
+      </input>
+    </span>
+
+    <span v-for="(tablelist,dir) in selectedNodeConfig.Config">{{ dir }}
+    </span>
+  </div>
+</div>
+
+<script>
+
+vm = new Vue({
+  el: '#app',
+  data: {
+    nodeList:
+      [
+        {
+          NodeAddr:"192.168.1.110:4412",
+          "Config" :{
+            "Dir1": ["emp22","dept22"],
+            "Dir2": ["emp23","dept23"]
+          }
+        },
+        {
+          NodeAddr:"192.168.1.111:4412",
+          "Config" :{
+          "Dir3": ["emp24","inf_subscriber"],
+          "Dir4": ["emp25","inf_dept"]
+          }
+        }
+      ],
+    selectedNodeConfig:null,
+    newAddr:""
+  },
+  methods:{
+    RefreshNodes(){
+      console.log("Try to /getNodeList")
+    },
+    ChangeClicked(NodeConfig){
+      console.log(JSON.stringify(NodeConfig))
+      this.selectedNodeConfig = NodeConfig
+    },
+    NewConnect(){
+      if (this.newAddr == "" || !/^\d+.\d+.\d+.\d+:\d+$/i.test(this.newAddr)) {
+
+        $.messager.alert("错误", "地址格式错误","error");
+        return
+      }
+
+      connString = $.ajax({url:"/connect",async:false,type:"POST",dataType:"text",data:this.newAddr});
+      if  (connString.responseText == 'OK'){
+        RefreshNodes()
+      } else {
+        $.messager.alert("错误", connString.responseText,"error");
+      }
+    },
+    CloseConnect( Addr ){
+      $.messager.confirm('提示', '确定要关闭 '+ Addr + " 吗？", function(b){  
+        if (b){
+          alert('确认'); 
+          //RefreshNodes()  关闭后刷讯节点列表 
+        }else{
+          alert('取消');
+          return  
+        }  
+      }); 
+    }
+
+  }
+
+
+});
+
+</script>
+</body>
+</html>

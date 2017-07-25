@@ -13,8 +13,8 @@ import (
     "./util"
 )
 
-var dataConfig = util.InitDataConfig()
-var varDefine = make(map[string][2]string)   //变量配置
+var dataConfig *util.DataConfig
+var varDefine = make(map[string][]string)   //变量配置
 
 //将CSV文件解析为数组切片
 func ParseCSV(filepath string) ([]string , [][]string ){
@@ -61,53 +61,55 @@ func GetKeyValue(dir string) {
             re, _ := regexp.Compile(`\d+$`)
 
             for i,column := range HeaderMap[tablename]{
+                isConfigedColumn := false
                 for _,v := range dataConfig.ColumnMap[tablename]{
-                    if v != column{
-                        continue          //不等于根值列配置里的列名，继续
-                    }
-
-                    if _,ok := dataConfig.AliasMap[tablename + "." + column]; ok {
-                        column = dataConfig.AliasMap[tablename + "." + column]     //如果有别名配置，则值改为别名
-                    }
-
-                    _,varMatch := varDefine[column];
-                    _,RandMatch := dataConfig.RandConfMap[column];
-                    if !varMatch && !RandMatch {
-                        fmt.Println("ERROR: " + column + " not found. Please check in vardefine.json")
-                        os.Exit(1)
-                    }
-
-                    for j,record := range RecordsMap[tablename]{
-                        if varMatch{
-                            varName,preVar := column,column   //变量名初始化为列名，这里变量名对应vardefine.json里的配置
-                        
-                            if j > 0{
-                                varName = column + strconv.Itoa(j)
-                                if j > 1{
-                                    preVar = column + strconv.Itoa(j-1)
-                                }
-
-                                if _,ok := varDefine[varName];!ok{
-                                    PreVarStr := varDefine[preVar][0]
-                                    loc := re.FindStringIndex(PreVarStr)
-
-                                    var2,_ := strconv.Atoi(PreVarStr[loc[0]:loc[1]])
-                                    growth,_ := strconv.Atoi(varDefine[column][1])
-                                    curVarStr := PreVarStr[:loc[0]] + strconv.Itoa(var2+growth)
-                                    fmt.Println(varName +" Grow Automatic: " + curVarStr)
-
-                                    varDefine[varName] = [2]string{curVarStr,varDefine[column][1]}
-                                } 
-                            }
-
-                            ValueMap[record[i]] = varDefine[varName][0]+"${" + varName + "}"
-                        }
-
-                        if RandMatch{
-                            ValueMap[record[i]] = "${" + column + "}"
-                        }
+                    if v == column{
+                        isConfigedColumn = true
+                        break          
                     }
                 }
+
+                if !isConfigedColumn{
+                    continue;   //不在列名配置表里，继续
+                }  
+                
+                varName := tablename+"."+ column
+                varConfig,varMatch := varDefine[varName];
+                _,randMatch := dataConfig.RandConfMap[varName];
+
+                if !varMatch && !randMatch{
+                    //既在列名配置里，又没有对应的变量或随机配置
+                    fmt.Println("ERROR: " + varName + " not found. Please check in vardefine.json or RandConfMap.")
+                    os.Exit(1)
+                }
+
+                for j,record := range RecordsMap[tablename]{
+
+                    if varMatch {
+                        varStr := varConfig[0]
+                        growth,_ := strconv.Atoi(varConfig[1])  //变量增长量
+
+                        //针对形如 SV2303 类的变量配置
+                        loc := re.FindStringIndex(varStr)
+                        varSeq,_ := strconv.Atoi(varStr[loc[0]:loc[1]]) // 2303
+                        varPrefix := varStr[:loc[0]]    //SV
+
+                        curVarName := varName + strconv.Itoa(j)  //当前变量名为类似empno1,empno2的形式
+                        
+                        if _,ok := varDefine[curVarName]; !ok {
+                            curVarStr := varPrefix + strconv.Itoa(varSeq+growth*j)
+                            fmt.Println(curVarName +" Grow Automatic: " + curVarStr)
+                            ValueMap[record[i]] = curVarStr +"${" + curVarName + "}"
+                        }else{    //如果主动配置了 empno2 等，则不需要根据来增长
+                            ValueMap[record[i]] = varDefine[curVarName][0] +"${" + curVarName + "}"
+                        } 
+                    }
+
+                    if randMatch {
+                        ValueMap[record[i]] = "${" + varName + "}"
+                    } 
+                }
+ 
             }
 
             return nil
@@ -123,6 +125,12 @@ func main() {
     
     jsonData,_ := ioutil.ReadFile("vardefine.json")
     if err := json.Unmarshal(jsonData,&varDefine); err != nil{
+        panic(err)
+    }
+
+    //加载dataConfig.json
+    jsonData,_ = ioutil.ReadFile("dataConfig.json")
+    if err := json.Unmarshal(jsonData,&dataConfig); err != nil{
         panic(err)
     }
 

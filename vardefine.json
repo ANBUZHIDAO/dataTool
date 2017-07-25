@@ -1,5 +1,7 @@
 {
-    "deptno":["SV6002000","10"],
-    "empno":["1000123","10"],
-    "phone_number":["188","1"]
+    "dept.deptno":["SV6002000","10"],
+    "inf_subscriber.sub_id":["SV6002000","10"],
+    "emp.empno":["1000123","10"],
+    "inf_subscriber.phone_number":["188","1"],
+    "dept.empno":["1000123","10"]
 }

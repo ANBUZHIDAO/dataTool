@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Vue DataTool</title>
+    <link rel="stylesheet" type="text/css" href="js/themes/default/easyui.css" />
+    <link rel="stylesheet" type="text/css" href="js/themes/icon.css" />
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/jquery.easyui.min.js"></script>
+    <script src="js/vue.js"></script>
+<style type="text/css">
+table.tableclass{ 
+font-family:"Courier New"; 
+} 
+table.tableclass td{ /*表格行*/ 
+margin:0px; 
+padding:0px; 
+border:0.5px solid #ABABAB; /* 单元格边框 */ 
+}
+.unchecked {
+height: 18px;
+width: 25px;
+float: left;
+cursor: pointer;
+margin-right: 3px;
+padding-left: 22px;
+text-align: center;
+background-image: url(images/checkbox_01.gif);
+background-repeat: no-repeat;
+background-position: 0 0;
+}
+.checked {
+height: 18px;
+width: 25px;
+float: left;
+cursor: pointer;
+margin-right: 3px;
+padding-left: 22px;
+text-align: center;
+background-image: url(images/checkbox_01.gif);
+background-repeat: no-repeat;
+background-position: 0 -21px;
+}
+</style>
+</head>
+
+<body>
+<div id="app">
+
+  <div class="panel-header panel-title" style="margin-top:5px;margin-bottom:3px;">增加节点</div> 
+  <span class="panel-header" style="border-radius:2px;padding:2px;font-family:KaiTi;margin-left:4px;margin-right:10px;weight:140px">节点地址</span>
+  <span class="textbox" style="width: 160px;padding-left:5px">
+    <input class="textbox-text validatebox-text" placeholder="IP:Port,如192.18.2.24:4412" style="width: 150px;" type="text" v-model="newAddr">
+  </span>
+
+  <a class="easyui-linkbutton" iconCls="icon-ok" v-on:click="NewConnect()" style="width:100px;margin-left:50px;">Connect</a> 
+
+
+  <div class="panel-header panel-title" style="margin-top:5px;">选择节点</div>
+  <div style="margin-top:5px;margin-bottom:3px;">
+    <span class="panel-header" style="border-radius:2px;padding:2px;font-family:KaiTi;margin-left:4px;margin-right:10px;weight:140px">节点目录</span>
+    <span class="textbox easyui-fluid combo" >
+      <select class="textbox-text" v-model="selectedNode" >
+        <option v-for="node in nodeList" v-bind:value="node.NodeAddr"> {{node.NodeAddr}} </option>
+      </select>
+    </span>
+
+    <span class="textbox easyui-fluid combo" style="width: 120px;margin-left: 6px">
+      <select class="textbox-text" v-model="selectDir" style="width: 120px">
+        <option v-for="(tablelist,dir) in selectedConfig" v-bind:value="dir"> {{dir}} </option>
+      </select>
+    </span>
+
+    <button class="easyui-linkbutton" v-on:click="Add" style="width:60px;margin-left:6px">确定</button>
+  </div>
+
+  <div class="panel-header">
+    <span class="panel-title">未分配</span>
+    <button class="l-btn l-btn-text"  style="margin-left:40px;width:60px;height: 80%" v-on:click="SelectAll">全选</button>
+    <button class="l-btn l-btn-text"  style="margin-left:5px;width:60px;height: 80%" v-on:click="DeSelectAll">全部取消</button>
+  </div>
+
+  <div v-for="table in TableList" :key="table" style="margin-top: 10px;margin-bottom: 10px;font-family:Courier New; font-size:15px">
+      <div style="float:left;width:240px; height:20px" >
+        <label v-bind:class="{unchecked : Selected.indexOf(table) == -1, checked : Selected.indexOf(table) != -1 }" v-on:click="changeCheck($event.target,table)" > {{ table }} </label>  
+      </div>   
+  </div>
+
+  <div style="clear:both;"><!--如何你上面用到float,下面布局开始前最好清除一下。--></div>
+
+  <p>
+  <div class="panel-header panel-title" style="margin-top:10px;">节点分配信息</div>
+  <table border="1"  class="tableclass" style="float:left;width:100%">
+        <thead>
+            <tr >
+              <th width="15%">节点名</th>
+              <th width="85%">数据配置(目录，表名，大小)</th>
+            </tr>
+        </thead>
+        <tbody style="font-size:14px">
+            <tr v-for="(nodeConfig,index) in nodeList">
+                <td style="padding-left:5px" > 
+                  <span >{{nodeConfig.NodeAddr}}</span>
+                </td>
+                <td >
+                  <table border="0"  class="tableclass" style="width:100%">
+                    <tbody >
+                      <tr v-for="(tableList,outDir) in nodeConfig.Config">
+                        <td width="25%"> 
+                          <span style="width:100%;padding-left: 2px"> {{ outDir }}</span>
+                        </td>
+                        <td style="padding-left:2px" width="60%" >
+                          <span class="tagbox-label" v-for="(table,index) in tableList">{{ table }}
+                            <a class="tagbox-remove" v-on:click="Del(table,tableList)"></a>
+                          </span>
+                        </td>
+                        <td style="padding-left:4px" width="15%" >
+                          <p style="margin:0px;">123</p>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+            </tr>
+        </tbody>
+        
+  </table>
+
+  <p>
+
+  <button class="l-btn l-btn-small"  v-on:click="Save" style="margin-top:10px;float:right; text-align: center; width:120px">
+    <span style="height:100%;font-size:18px">保存</span>
+  </button>
+   
+</div>
+
+<script>
+vm = new Vue({
+  el: '#app',
+  data: {
+    newAddr:"",
+    nodeList:
+      [
+        {
+          NodeAddr:"192.168.1.110:4412",
+          "Config" :{
+            "out": ["emp22","dept22"],
+            "out2": ["emp23","dept23"]
+          }
+        },
+        {
+          NodeAddr:"192.168.1.111:4412",
+          "Config" :{
+          "/opt/out": ["emp24","inf_subscriber"],
+          "/home/oracle/out": ["emp25","inf_dept"]
+          }
+        }
+      ],
+    TableList:["inf_subs1","om_dispatch_order_his2","inf_cust3","inf_acct4","inf_cust5","inf_acct6","inf_cust7","inf_acct8","inf_cust9","inf_acct10","inf_cust11","inf_acct12","om_dispatch_order_his"],
+    Selected:[],
+    selectedNode:"",
+    selectedConfig:{},
+    selectDir:""
+  },
+  watch: { selectedNode: 'getNodeConfig' },
+  methods:{
+    NewConnect(){
+      if (this.newAddr == "" || !/^\d+.\d+.\d+.\d+:\d+$/i.test(this.newAddr)) {
+
+        $.messager.alert("错误", "地址为空或格式错误","error");
+        return
+      }
+
+      
+
+      connString = $.ajax({url:"/connect",async:false,type:"POST",dataType:"text",data:this.newAddr});
+      if  (connString.responseText == 'OK'){
+        //this.nodeList.push({NodeAddr:"192.168.2.34"})
+
+      } else {
+        $.messager.alert("错误", connString.responseText,"error");
+      }
+    },
+    CloseConnect( Addr ){
+      $.messager.confirm('提示', '确定要关闭 '+ Addr + " 吗？", function(b){  
+        if (b){
+          alert('确定');
+           
+        }else{
+          alert('取消');
+          return  
+        }  
+      }); 
+    },
+    Del(table,tableList){
+      index = tableList.indexOf(table)
+      tableList.splice(index,1)
+
+      this.TableList.push(table)
+    },
+    getNodeConfig(){
+      console.log(JSON.stringify(this.nodeList));
+      console.log(this.selectedNode)
+      console.log(JSON.stringify(this.selectedConfig))
+
+      for ( var i = 0; i < this.nodeList.length;i++){
+        console.log(this.nodeList[i].NodeAddr)
+        if(this.nodeList[i].NodeAddr == this.selectedNode ){
+          this.selectedConfig = this.nodeList[i].Config;
+        }
+      }
+
+      this.selectDir = ""   //重新选择第一个框后将第二个重置为空，否则界面上看到目录是空，点击确定仍然能够添加
+
+      console.log(this.selectDir)
+    },
+    Save(){
+      console.log(JSON.stringify(this.nodeList));
+    },
+    SelectAll(){
+      this.Selected = []
+      this.Selected = this.Selected.concat(this.TableList)
+
+      console.log(this.Selected)
+      console.log(this.TableList)
+    },
+    DeSelectAll(){
+      this.Selected = []
+
+      console.log(this.Selected)
+      console.log(this.TableList)
+    },
+    Add(){
+      //校验目录未选择则报错，直接返回，不添加
+      if(this.selectedNode == "" || this.selectDir == "" || this.selectedNode == null || this.selectDir == null){
+        console.log("haven't select Node and Dir,return")
+        return 
+      }
+
+      //根据所选节点目录，添加Selected选择中的表加入Config
+      for (var i =0 ; i < this.nodeList.length; i++){
+        if(this.nodeList[i].NodeAddr == this.selectedNode ){
+          for (var dir in this.nodeList[i].Config){
+            if(dir == this.selectDir){
+              this.nodeList[i].Config[dir] = this.nodeList[i].Config[dir].concat(this.Selected)
+            }
+          }
+        }
+      }
+
+      console.log(JSON.stringify(this.nodeList));
+      //加入Config后，从TableList中删除 Selected 并把 Selected 清空
+      for (var i =0 ; i < this.Selected.length; i++){
+        index = this.TableList.indexOf(this.Selected[i])
+        this.TableList.splice(index,1)
+      }
+      this.Selected = []    //需重置为空
+
+      console.log(JSON.stringify(this.TableList));
+    },
+    changeCheck(checkbox,table){
+      console.log(checkbox);
+      console.log(checkbox.className); 
+
+      checkbox.className = (checkbox.className == "checked") ? "unchecked" : "checked"
+
+      if(checkbox.className == "checked"){ //选中状态 
+        this.Selected.push(table)
+        console.log(this.Selected)
+      } else {
+        i = this.Selected.indexOf(table)
+        this.Selected.splice(i,1)
+        console.log(this.Selected)
+      }
+      
+    }
+  }
+});
+</script>
+
+
+</body>
+</html>

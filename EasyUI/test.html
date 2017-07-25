@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Vue DataTool</title>
+<script src="js/vue.js"></script>
+</head>
+<body>
+<div id="app">
+  <p v-model="message">{{ message }}</p>
+</div>
+
+<div id="app2">  
+  <div>{{ counter }}</div>  
+  <button v-on:click="increment">Increment</button>  
+</div>
+
+<div id="app-5">
+  <p>{{ message }}</p>
+  <button v-on:click="reverseMessage">逆转消息</button>
+</div>
+
+<script>
+var vapp = new Vue({
+  el: '#app',
+  data: {
+    message: 'Hello Vue.js!'
+  }
+});
+
+new Vue({  
+    el: '#app2',  
+    data: {  
+      counter: 0  
+    },  
+    methods: {  
+      increment() {   
+        this.counter++;  
+      }  
+    }  
+  });
+
+var app5 = new Vue({
+  el: '#app-5',
+  data: {
+    message: 'Hello Vue.js!'
+  },
+  methods: {
+    reverseMessage: function () {
+      this.message = this.message.split('').reverse().join('')
+    }
+  }
+})
+</script>
+
+
+</body>
+</html>

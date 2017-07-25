@@ -1,0 +1,122 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head id="Head1">
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>VUE-EasyUI-dataTool</title>
+    <link href="css/default.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="js/themes/bootstrap/easyui.css" />
+    <link rel="stylesheet" type="text/css" href="js/themes/icon.css" />
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/jquery.easyui.min.js"></script>
+	<script type="text/javascript" src='js/outlook2.js'> </script>
+    <script type="text/javascript">
+	 var _menus = {"menus":[
+						{"menuid":"12","menuname":"节点管理","icon":"icon-add","url":"node.html"},
+						{"menuid":"13","menuname":"表列配置","icon":"icon-conf","url":"table.html"},
+						{"menuid":"14","menuname":"用户配置","icon":"icon-users","url":"user.html"},
+						{"menuid":"21","menuname":"导出数据","icon":"icon-nav","url":"export.html"},
+						{"menuid":"22","menuname":"模板配置","icon":"icon-nav","url":"model.html"},
+						{"menuid":"31","menuname":"流程说明","icon":"icon-nav","url":"nodeTest.html"},
+						{"menuid":"32","menuname":"数据构造","icon":"icon-nav","url":"build.html"},
+                        {"menuid":"33","menuname":"检查分析","icon":"icon-nav","url":"build2.html"},
+						{"menuid":"41","menuname":"日志查看","icon":"icon-nav","url":"demo.html"}
+				]};
+
+    </script>
+
+<style>
+pre {
+	text-align: left;
+	width: 95%;
+	margin: 5px 0 0 0;
+	padding: 5px;
+	border: 0;
+	border: 1px dotted #785;
+	background: #f5f5f5;
+	line-height: 1.8;
+	font-size: 14px;
+	font-family: Consolas,"Courier New",Courier,monospace;
+}
+div#maincontent {
+	float: left;
+	margin: 0 0 0 25px;
+	padding: 3px 0 0 0;
+	border: 0;
+	width: 850px;
+	background: transparent;
+}
+body {
+	font-size: 14px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: #fdfcf8;
+}
+html {
+	background-color: #fdfcf8;
+	overflow: scroll;
+	overflow-x: hidden;
+}
+</style>
+
+</head>
+<body class="easyui-layout html" style="overflow-y: hidden"  scroll="no">
+<noscript>
+<div style=" position:absolute; z-index:100000; height:2046px;top:0px;left:0px; width:100%; background:white; text-align:center;">
+    <img src="images/noscript.gif" alt='抱歉，请开启脚本支持！' />
+</div></noscript>
+    <div region="north" split="true" border="false" style="overflow: hidden; height: 30px;
+        background: url(images/layout-browser-hd-bg.gif) #7f99be repeat-x center 50%;
+        line-height: 20px;color: #fff; font-family: Courier New;">
+        <span style="padding-left:10px; font-size: 16px; ">
+        	<img src="images/blocks.gif" width="20" height="20" align="absmiddle"/>VUE-EasyUI-dataTool
+        </span>
+    </div>
+    <div region="south" split="true" style="height: 30px; background: #D2E0F2; ">
+        <div class="footer">By Liangyong 00224412</div>
+    </div>
+    <div region="west" hide="true" split="true" title="导航菜单" style="width:180px;" id="west">
+		<div id="nav" class="easyui-accordion" fit="true" border="false">
+			<!--  导航菜单 -->		
+		</div>
+    </div>
+    <div id="mainPanle" region="center" style="background: #eee; overflow-y:hidden">
+        <div id="tabs" class="easyui-tabs"  fit="true" border="false" >
+		  <div title="欢迎使用" class="tabs-closable" data-options="closable:true" >
+			<h1 style="font-size:24px;padding-left:20px;font-family:KaiTi;margin-bottom: 10px">梁勇 00224412 dataTool</h1>
+
+			<div id="maincontent">
+			<pre>
+VUE官网：https://cn.vuejs.org/v2/guide/
+EasyUI : http://www.jeasyui.net/
+
+使用VUE做数据绑定，大的框架界面使用的EasyUI。 各个界面部分使用了EasyUI，部分是原生HTML。
+因为对比React,AngularJS来说，VUE比较轻量级。
+
+支持多节点造数据。 
+管理节点负责与应用节点连接，TCP长连接保持连接，并不断发送指令检测节点状态，
+各应用节点接收管理节点的命令，同步配置，同步日志，构造数据。
+
+应用节点接收到构造数据指令后，根据配置，多线程开始构造数据。构造完成后多线程起SQLLoader进行数据导入。
+			</pre> </div>
+
+		  </div>
+		</div>
+    </div>
+
+	<div id="mm" class="easyui-menu" style="width:150px;">
+		<div id="mm-tabupdate">刷新</div>
+		<div class="menu-sep"></div>
+		<div id="mm-tabclose">关闭</div>
+		<div id="mm-tabcloseall">全部关闭</div>
+		<div id="mm-tabcloseother">除此之外全部关闭</div>
+		<div class="menu-sep"></div>
+		<div id="mm-tabcloseright">当前页右侧全部关闭</div>
+		<div id="mm-tabcloseleft">当前页左侧全部关闭</div>
+		<div class="menu-sep"></div>
+		<div id="mm-exit">退出</div>
+	</div>
+
+
+</body>
+</html>

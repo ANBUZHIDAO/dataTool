@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Vue DataTool</title>
+    <link rel="stylesheet" type="text/css" href="js/themes/default/easyui.css" />
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/jquery.easyui.min.js"></script>
+    <script src="js/vue.js"></script>
+<style type="text/css">
+body { 
+} 
+table.tableclass caption{ /*标题*/ 
+text-align:center; 
+padding-bottom:6px;
+font-family:KaiTi; 
+} 
+table.tableclass td{ /*表格行*/ 
+margin:0px; 
+padding:0px; 
+border:1px solid #ABABAB; /* 单元格边框 */ 
+} 
+table.tableclass input{ /*可输入区域样式*/ 
+width:90%; 
+height:100%;
+padding:1px 3px 1px 3px; 
+margin:0px; 
+border:none; /* 输入框不要边框 */ 
+font-family:Arial; 
+}
+</style>
+</head>
+
+<body>
+<div id="app">
+  <table border="2"  class="tableclass" style="padding-left:2px;width:100%">
+      <caption>用户配置</caption>
+        <thead>
+            <tr>
+                <th width="10%">用户</th>
+                <th width="10%">密码</th>
+                <th width="10%">输出目录</th>
+                <th width="40%">表名</th>
+                <th width="30%">操作</th>
+            </tr>
+        </thead>
+        <tbody >
+            <tr v-for="(item,index) in loadConfig">
+                <td style="padding-left:8px" > 
+                  <input type="text" v-model="item.Username" v-on:change="ChangeUsername(item)"></input>
+                </td>
+                <td style="padding-left:8px" > 
+                  <input type="text" v-model="item.Password" ></input>
+                </td>
+                <td style="padding-left:8px" > 
+                  <input type="text" v-bind:value="item.OutputDir" ></input>
+                </td>
+                <td>
+                  <table border="2"  class="tableclass" style="width:100%">
+                    <tbody >
+                      <tr v-for="(table,index) in item.TableList">
+                        <td > 
+                          <input type="text" v-model="table" v-on:change="ChangeColumn(index,$event,vCols)"></input>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+                <td style="padding-left:14px" align="center">
+                    <button class="l-btn l-btn-small"  v-on:click="NewTable(item)">
+                      <span class="l-btn-left"><span class="l-btn-text">添加新表</span></span>
+                    </button>
+                    <button class="l-btn l-btn-small"  v-on:click="TestConnect(item)">
+                      <span class="l-btn-left"><span class="l-btn-text">测试连接</span></span>
+                    </button>
+                </td>
+            </tr>
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4">
+                    <div class="pull-left">
+                        <button class="easyui-linkbutton" v-on:click="Save">保存</button>
+                        <button class="easyui-linkbutton" v-on:click="NewUser">新增</button>
+                    </div>    
+                </td>
+            </tr>
+        </tfoot>
+  </table>
+</div>
+
+<script>
+vm = new Vue({
+  el: '#app',
+  data: {
+    loadConfig:[
+      {
+        "Username": "scott",
+        "Password": "oracle",
+        "OutputDir": "outdir",
+        "TableList": [
+          "emp",
+          "dept"
+        ]
+      },
+      {
+        "Username": "testuser",
+        "Password": "oracle",
+        "OutputDir": "",
+        "TableList": [
+          "inf_subscriber"
+        ]
+      }
+    ]
+  },
+  methods:{
+    ChangeUsername(item){
+
+      console.log(JSON.stringify(item))
+    },
+    ChangeKey(key,newkey,vCols){
+      console.log("Key Change from " +  key + " to " + newkey + " ; vCols :" + vCols );
+      delete this.tableList[key]
+      this.tableList[newkey] = vCols;
+      console.log(JSON.stringify(this.tableList));
+    },
+    NewUser(){
+      this.loadConfig.push({"Username": "newUser","Password": "password","OutputDir": "","TableList":[]})
+      console.log(JSON.stringify(this.loadConfig));
+      
+    },
+    NewTable(item){
+      item.TableList.push("newTable")
+      console.log(JSON.stringify(this.loadConfig));
+    },
+    TestConnect(item){
+      console.log(JSON.stringify(item))
+      console.log("select * from item.Username.item.Password")
+      $.messager.alert("测试结果", "用户名或密码错误","error");
+    },
+    Save(){
+      console.log(JSON.stringify(this.loadConfig));
+      $.messager.alert("结果", "保存成功","info");
+    }
+  }
+});
+</script>
+
+
+</body>
+</html>

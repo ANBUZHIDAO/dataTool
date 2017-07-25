@@ -3,7 +3,12 @@ package util
 import (
     "os"
     "os/exec"
+    "io"
     "io/ioutil"
+    "log"
+    "bytes"
+    "time"
+    "fmt"
 )
 
 func RebuildDir(dir string){
@@ -50,4 +55,36 @@ func ExecSQLPlus(InputSQL string )( string){
         panic( err )
     }
     return string(content)
+}
+
+
+var logBuf *bytes.Buffer
+var logger *log.Logger
+
+func GetLogger()(*log.Logger){
+
+    initLogger()
+    return logger  
+}
+
+func initLogger(){
+
+    if logger == nil{
+        logBuf = bytes.NewBufferString("")
+       //设置本地文件日志以及缓冲区日志(缓冲区日志为了传输给管理节点)
+        logFile,err  := os.OpenFile("log/"+ time.Now().Format("20060102150405")+".log",os.O_WRONLY|os.O_CREATE|os.O_TRUNC,0664)
+        if err != nil {
+            fmt.Println("Open local log file error,will not write local log !")
+            logger = log.New(logBuf,"appNode:",log.Lshortfile | log.Ldate | log.Ltime) 
+            return
+        }
+
+        logger = log.New(io.MultiWriter(logFile,logBuf),"appNode:",log.Lshortfile | log.Ldate | log.Ltime)     
+    }    
+}
+
+func GetLogbuf() string{
+    logContent := logBuf.String()
+    logBuf.Reset()
+    return logContent
 }

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" type="text/css" href="js/themes/default/easyui.css" />
+  <script type="text/javascript" src="js/jquery.min.js"></script>
+  <script type="text/javascript" src="js/jquery.easyui.min.js"></script>
+  <script src="js/vue.js"></script>
+<style type="text/css">
+textarea {
+  border: none;
+  border-right: 1px solid #ccc;
+  resize: none;
+  outline: none;
+  background-color: #f6f6f6;
+  font-size: 14px;
+  font-family: 'Monaco', courier, monospace;
+  padding: 8px;
+  width:98%; 
+  height:300px;
+}
+</style>
+</head>
+<body>
+
+
+<div id="editor" >
+  <div style="margin-bottom:12px">
+    <label class="textbox-label textbox-label-before" style="text-align: center; height: 20px; line-height: 20px;" >模板名称:</label>
+    <span class="textbox textbox-invalid easyui-fluid" style="width: 191px;">
+      <input type="text" class="textbox-text" style="margin: 0px; width: 183px; height: 24px; line-height: 24px; padding-top: 0px; padding-bottom: 0px;" v-model="model" v-bind:disabled="isDisabled"> 
+      </input>
+    </span>
+    <button class="l-btn l-btn-small"  v-on:click="chengEditable($event)">
+        <span class="l-btn-left">
+          <span class="l-btn-text">{{ menu_name }}</span>
+        </span>
+    </button>
+  </div>
+  <div class="panel-header panel-title">导出SQL</div>
+  <textarea v-model="input"></textarea>
+  <div class="pull-left" style="padding: 4px" >
+      <button class="easyui-linkbutton" v-on:click="Save" style="padding-left:12px;padding-right:12px;" >保存</button>
+      &nbsp;&nbsp;
+      <button class="easyui-linkbutton" v-on:click="Execute" style="padding-left:12px;padding-right:12px;">执行</button>
+  </div>
+  <div class="panel-header panel-title">执行结果</div>
+  <div >
+    <textarea v-model="result"></textarea>
+  </div>
+</div> 
+
+
+
+<script>
+new Vue({
+  el: '#editor',
+  data: {
+    model: "model",
+    isDisabled:true,
+    menu_name: "修改",
+    input: " select * from scott.dept r where r.deptno = ''$deptno'' ",
+    result: 'Failed'
+  },
+  methods:{
+    Save(){
+      console.log(JSON.stringify(this.input))
+    },
+    chengEditable(event){
+      console.log(event)
+      console.log(this.model)
+      this.isDisabled = !this.isDisabled
+      if(this.isDisabled){
+        this.menu_name = "修改"
+      }else {
+        this.menu_name = "确定"
+      }
+    },
+    Execute(){
+      console.log(JSON.stringify(this.input))
+      //执行时并不顺便就保存
+    }
+  }
+})
+
+</script>
+
+</body>
+</html>

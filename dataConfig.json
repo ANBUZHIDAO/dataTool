@@ -1,27 +1,30 @@
 {
+    "GlobalVar": {
+        "BatchQua": 200000,
+        "ModBatch": 100,
+        "TotalQua": 100,
+        "Startvalue": 1000
+    },
     "ColumnMap": {
         "inf_subscriber":["sub_id","phone_number","firstname"],
         "dept":["deptno","dname","loc"],
         "emp":["empno","ename"]
-    },
-    "AliasMap": {
-        "tablename.columnname": "aliasname"
     },
     "ExcludeMap":{
         "aliasname":true,
         "columnname":true
     },
     "RandConfMap":{
-            "ename":["100","2","3","default"],
-            "dname":["10","5","9","chinese"],
-            "loc":["100","10","10","province"]
+            "emp.ename":["100","2","3","default"],
+            "dept.dname":["1000","5","9","chinese"],
+            "dept.loc":["100","province"]
     },
     "EnumlistMap":{
             "province":["Henan","Henan","Shandong","Shandong","Jiangsu","Hubei"]
     },
-    "Models":[
-        {"Value": "model","Weight": 1},
-        {"Value": "model2","Weight": 1},
-        {"Value": "model3","Weight": 1}
-    ]
+    "Models":{
+        "model":  1,
+        "model2": 1,
+        "model3": 1
+    }
 }

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Vue DataTool</title>
+    <link rel="stylesheet" type="text/css" href="js/themes/default/easyui.css" />
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/jquery.easyui.min.js"></script>
+    <script src="js/vue.js"></script>
+<style type="text/css">
+body { 
+} 
+table.tableclass caption{ /*标题*/ 
+text-align:center; 
+padding-bottom:6px;
+font-family:KaiTi; 
+} 
+table.tableclass td{ /*表格行*/ 
+margin:0px; 
+padding:0px; 
+border:1px solid #ABABAB; /* 单元格边框 */ 
+} 
+table.tableclass input{ /*可输入区域样式*/ 
+width:90%; 
+height:100%;
+padding:1px 3px 1px 3px; 
+margin:0px; 
+border:none; /* 输入框不要边框 */ 
+font-family:Arial; 
+}
+</style>
+</head>
+
+<body>
+<div id="app">
+  <table border="2"  class="tableclass" style="padding-left:2px;width:100%">
+      <caption>数据表列配置</caption>
+        <thead>
+            <tr>
+                <th width="15%">表名</th>
+                <th width="40%">列名</th>
+                <th width="20%">操作</th>
+            </tr>
+        </thead>
+        <tbody >
+            <tr v-for="(vCols,key) in tableList">
+                <td style="padding-left:8px" > 
+                  <input type="text" v-bind:value="key" v-on:change="ChangeKey(key,$event.target.value,vCols); key = $event.target.value"></input>
+                </td>
+                <td>
+                  <table border="2"  class="tableclass" style="width:100%">
+                    <tbody >
+                      <tr v-for="(varname,index) in vCols">
+                        <td > 
+                          <input type="text" v-model="varname" v-on:change="ChangeColumn(index,$event,vCols)"></input>
+                        </td>
+                        <td style="padding-left:4px" >
+                          <input type="text" v-bind:value="vardefine[varname] || RandConfMap[varname]" v-on:change="ChangeVar(varname,$event)"></input>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+                <td style="padding-left:14px" align="center">
+                  <button class="l-btn l-btn-small"  v-on:click="NewColumn(vCols)">
+                      <span class="l-btn-left"><span class="l-btn-text">添加新列</span></span>
+                  </button>
+                </td>
+            </tr>
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4">
+                    <div class="pull-left">
+                        <button class="easyui-linkbutton" v-on:click="Save">保存</button>
+                        <button class="easyui-linkbutton" v-on:click="NewTable">新增</button>
+                    </div>    
+                </td>
+            </tr>
+        </tfoot>
+  </table>
+</div>
+
+<script>
+vm = new Vue({
+  el: '#app',
+  data: {
+    tableList:{
+        "inf_subscriber":["sub_id","phone_number","firstname"],
+        "dept":["deptno","dname","loc"],
+        "emp":["empno","ename"],
+        "inf_subscriber2":["sub_id","phone_number","firstname"],
+        "dept2":["deptno","dname","loc"],
+        "emp2":["empno","ename"]
+    },
+    vardefine:{
+    "deptno":["SV6002000","10"],
+    "sub_id":["SV6002000","10"],
+    "empno":["1000123","10"],
+    "phone_number":["188","1"]
+    },
+    RandConfMap:{
+            "ename":["100","2","3","default"],
+            "dname":["10","5","9","chinese"],
+            "loc":["100","province"]
+    }
+  },
+  methods:{
+    Change(key,val){
+      console.log("Click " +  key + " " + val );
+
+      console.log(val)
+      console.log(JSON.stringify(this.tableList));
+    },
+    ChangeKey(key,newkey,vCols){
+      console.log("Key Change from " +  key + " to " + newkey + " ; vCols :" + vCols );
+      delete this.tableList[key]
+      this.tableList[newkey] = vCols;
+      console.log(JSON.stringify(this.tableList));
+    },
+    ChangeColumn(index,event,vCols){
+      varname = event.target.value
+      oldColumn = vCols[index]
+
+      if(vCols.indexOf(varname) != -1){
+        console.log(varname + " already exists, will remain to old value:" + oldColumn);
+        event.target.value = oldColumn;
+        return
+      }
+
+      vCols[index] = varname
+      console.log("columns Change from "+ oldColumn + " to " + varname + " ; vCols :" + vCols );
+      console.log(JSON.stringify(this.tableList));
+
+      if(this.vardefine[varname]){
+        console.log(event.target.parentNode.parentNode.getElementsByTagName("INPUT")[1])
+        event.target.parentNode.parentNode.getElementsByTagName("INPUT")[1].value = this.vardefine[varname]
+        return
+      }
+
+      if(this.RandConfMap[varname]){
+        console.log(event.target.parentNode.parentNode.getElementsByTagName("INPUT")[1])
+        event.target.parentNode.parentNode.getElementsByTagName("INPUT")[1].value = this.RandConfMap[varname]
+        return
+      }
+
+      if(this.vardefine[oldColumn]){
+
+        vardef = this.vardefine[oldColumn]
+        delete this.vardefine[oldColumn]
+        this.vardefine[varname] = vardef
+        console.log(JSON.stringify(this.vardefine));
+      }else if(this.RandConfMap[oldColumn])
+      {
+        vardef = this.RandConfMap[oldColumn]
+        delete this.RandConfMap[oldColumn]
+        this.RandConfMap[varname] = vardef
+        console.log(JSON.stringify(this.RandConfMap));
+      }else{
+        console.log("New column name hasn't define variable")
+      }
+    },
+    ChangeVar(varname,event){
+      newdef = event.target.value
+      //console.log(event)
+      console.log(newdef)
+
+      //如果格式正确就修改配置，如果格式错误就设置回原值不变
+      if (/^\w+\d+,\d+$/i.test(newdef)){
+        newvardef = newdef.split(",")
+        this.vardefine[varname] = newvardef
+        delete this.RandConfMap[varname]
+        console.log(JSON.stringify(this.vardefine));
+      }else if (/^\d+,\d+,\d+,\w+$/i.test(newdef) || /^\d+,\w+$/i.test(newdef)){
+        newvardef = newdef.split(",")
+        this.RandConfMap[varname] = newvardef
+        delete this.vardefine[varname]
+        console.log(JSON.stringify(this.RandConfMap));
+      }else{
+        console.log("format Wrong,remain old value")
+        event.target.value = (this.vardefine[varname] || this.RandConfMap[varname]) || ""
+      }
+        
+    },
+    NewColumn(vCols){
+      console.log("newColumn" + (vCols.length +1))
+      vCols.push("newColumn" + (vCols.length +1))
+      console.log(JSON.stringify(this.tableList));
+      
+    },
+    NewTable(){
+      this.$set(this.tableList, "newTable" , ["newColumn"])
+      console.log(JSON.stringify(this.tableList));
+    },
+    Save(){
+      console.log(JSON.stringify(this.tableList));
+      console.log(JSON.stringify(this.vardefine));
+      console.log(JSON.stringify(this.RandConfMap));
+    }
+  }
+});
+</script>
+
+
+</body>
+</html>

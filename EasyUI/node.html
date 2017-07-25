@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Vue DataTool</title>
+    <link href="css/default.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="js/themes/default/easyui.css" />
+    <link rel="stylesheet" type="text/css" href="js/themes/icon.css" />
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/jquery.easyui.min.js"></script>
+    <script src="js/vue.js"></script>
+</head>
+<body>
+<div id="app">
+  <p>{{ message }}</p>
+</div>
+
+<div id="app1">  
+  <input id="Addr" class="easyui-validatebox easyui-textbox" data-options="prompt:'IP:Port,如192.18.2.24:4412',validType:'SockAddr', label:'节点地址:'" style="width:240px"/>
+  <a href="#" class="easyui-linkbutton" iconCls="icon-ok" onclick="NewConnect()" style="width:100px;height:32px;margin-left:50px;">Connect</a>
+</div>
+
+
+<div id="app2">  
+  <table title="应用节点" id="nodedg"></table>
+  <a href="#" class="easyui-linkbutton" onclick="RefreshNodes()" style="width:80px;height:28px">刷新</a>
+</div>
+
+<script>
+var app = new Vue({
+  el: '#app',
+  data: {
+    message: 'Hello Vue.js!'
+  }
+});
+
+
+$.extend($.fn.validatebox.defaults.rules, {
+  SockAddr: {
+    validator: function (value) {
+      console.log(/\d+.\d+.\d+.\d+:\d+/i.test(value))
+      return /\d+.\d+.\d+.\d+:\d+/i.test(value);
+    },
+    message: 'IP:Port,如192.18.2.24:4412,默认端口号：4412'
+  }
+})
+
+
+$('#nodedg').datagrid({
+    url:'nodeInfo.json',
+    method:"get",
+    columns:[[
+        {field:'Nodeaddr',title:'节点',width:180},
+        {field:'Status',title:'状态',width:80,align:'center'},
+        {field:'opt',title:'操作',width:80,align:'center',
+    formatter:function (value,row,index){ 
+      console.log(row)
+      return '<a class="easyui-connect" onclick="CloseConnect(\''+row.Nodeaddr+'\')">断开连接</a>';  
+    }}
+    ]],
+  onLoadSuccess:function(data){  
+        $('.easyui-connect').linkbutton({text:'断开连接'});  
+    }
+}); 
+
+$(document).ready(function(){
+  connString = $.ajax({url:"test.txt",async:false,type:"GET",dataType:"text"});
+  app.message = connString.responseText
+});
+
+function RefreshNodes(){
+  $('#nodedg').datagrid("reload"); 
+}
+
+function NewConnect(){
+  newAddr = document.getElementById("Addr").value
+  if (newAddr == "" || !/^\d+.\d+.\d+.\d+:\d+$/i.test(newAddr)) {
+
+    $.messager.alert("错误", "地址格式错误","error");
+    return
+  }
+
+  connString = $.ajax({url:"/connect",async:false,type:"POST",dataType:"text",data:newAddr});
+  if  (connString.responseText == 'OK'){
+    RefreshNodes()
+  } else {
+    $.messager.alert("错误", connString.responseText,"error");
+  }
+}
+
+function CloseConnect( Addr ){
+  $.messager.confirm('提示', '确定要关闭 '+ Addr + " 吗？", function(b){  
+    if (b){
+      alert('确认'); 
+      //RefreshNodes()  关闭后刷讯节点列表 
+    }else{
+      alert('取消');
+      return  
+    }  
+}); 
+
+}
+
+
+</script>
+</body>
+</html>

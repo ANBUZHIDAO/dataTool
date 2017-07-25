@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" type="text/css" href="js/themes/default/easyui.css" />
+  <script type="text/javascript" src="js/jquery.min.js"></script>
+  <script type="text/javascript" src="js/jquery.easyui.min.js"></script>
+  <script src="js/vue.js"></script>
+<style type="text/css">
+body { 
+} 
+table.tableclass caption{ /*标题*/ 
+text-align:center; 
+padding-bottom:6px;
+font-family:KaiTi; 
+} 
+table.tableclass td{ /*表格行*/ 
+margin:0px; 
+padding:0px; 
+border:1px solid #ABABAB; /* 单元格边框 */ 
+} 
+table.tableclass input{ /*可输入区域样式*/ 
+width:90%; 
+height:100%;
+padding:1px 3px 1px 3px; 
+margin:0px; 
+border:none; /* 输入框不要边框 */ 
+font-family:Arial; 
+}
+</style>
+</head>
+<body>
+
+
+<div id="editor" >
+  
+  <div class="panel-header panel-title">模板配置</div>
+ 
+  <table border="2"  class="tableclass" style="float:none; padding-left:2px;width:100%">
+        <thead>
+            <tr>
+                <th width="30%" style="font-family:KaiTi">源数据</th>
+                <th width="70%" style="font-family:KaiTi">模板</th>
+            </tr>
+        </thead>
+        <tbody >
+            <tr>
+              <td> 
+                <table border="1" class="tableclass" style="float:left;width:100%">
+                <thead border="0" >
+                  <tr>
+                    <th width="30%"></th>
+                    <th width="70%"></th>
+                  </tr>
+                </thead>
+                <tbody >
+
+                  <tr v-for="(sourcename,index) in sourceList">
+                    <td style="padding-left:8px" > 
+                    <input type="text" v-bind:value="sourcename"></input>
+                    </td>
+                    <td style="padding-left:14px" align="center">
+                    <button class="l-btn l-btn-small"  v-on:click="genModel(sourcename)">
+                      <span class="l-btn-left"><span class="l-btn-text">生成模板</span></span>
+                    </button>
+                    <button class="l-btn l-btn-small"  v-on:click="genModel(sourcename)">
+                      <span class="l-btn-left"><span class="l-btn-text">查看</span></span>
+                    </button>
+                    </td>
+                  </tr>
+                </tbody>
+                </table>
+              </td>
+              <td>
+                <table border="1"  class="tableclass" style="float:left;width:100%">
+                <thead>
+                  <tr>
+                    <th width="30%"></th>
+                    <th width="10%"></th>
+                    <th width="60%"></th>
+                  </tr>
+                </thead>
+                <tbody >
+                  <tr v-for="(weight,modelname) in modelList">
+                    <td style="padding-left:8px" > 
+                      <input type="text" v-bind:value="modelname"></input>
+                    </td>
+                    <td > 
+                      <input type="text" v-bind:value="weight"></input>
+                    </td>
+                    <td style="padding-left:14px" align="center">
+                      <button class="l-btn l-btn-small"  v-on:click="genModel(modelname)">
+                      <span class="l-btn-left"><span class="l-btn-text">删除</span></span>
+                      </button>
+                      <button class="l-btn l-btn-small"  v-on:click="genModel(modelname)">
+                      <span class="l-btn-left"><span class="l-btn-text">查看</span></span>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+                </table>
+              </td>
+            </tr>
+        </tbody>
+  </table>
+
+<div class="pull-left">
+  <button class="easyui-linkbutton" style="margin-top:6px;padding-left:12px;padding-right:12px" v-on:click="Save">刷新</button>
+  <button class="easyui-linkbutton" style="margin-top:6px;padding-left:12px;padding-right:12px" v-on:click="Refresh">保存</button>
+</div>
+</div> 
+  
+
+
+
+<script>
+new Vue({
+  el: '#editor',
+  data: {
+    sourceList:["prepaid1","4G1","3G1"],
+    modelList:{
+    "dept.deptno":1,
+    "inf_subscriber.sub_id":1,
+    "emp.empno":1,
+    "inf_subscriber.phone_number":1,
+    "dept.empno":1
+    }
+  },
+  methods:{
+    Save(){
+      console.log(JSON.stringify(this.sourceList))
+      console.log(JSON.stringify(this.modelList))
+    },
+    genModel(sourcename){
+      console.log(sourcename)   
+    },
+    Refresh(){
+      console.log(JSON.stringify(this.sourceList))
+      console.log(JSON.stringify(this.modelList))
+      //执行时并不顺便就保存
+    }
+  }
+})
+
+</script>
+
+</body>
+</html>
