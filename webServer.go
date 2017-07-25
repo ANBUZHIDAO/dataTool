@@ -36,7 +36,6 @@ var logMap = make(map[string]*log.Logger)
 
 func main(){
 
-	
 /*
 	var jsonStruct interface{}
 	jsonData,_ := ioutil.ReadFile("loadConfig.json")
@@ -55,6 +54,8 @@ func main(){
 
     http.HandleFunc("/connect", ConnectNode) 
     http.HandleFunc("/nodeInfo", getNodeList) 
+    http.HandleFunc("/getLoadConfig", getLoadConfig)
+    http.HandleFunc("/saveLoadConfig", saveLoadConfig)
     http.Handle("/", http.FileServer(http.Dir("EasyUI")))
     http.ListenAndServe(":8060", nil)
     
@@ -71,27 +72,6 @@ func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
         fmt.Println(err)
     }
     t.Execute(w, nil)
-}
-
-func ConnectNode(w http.ResponseWriter, r *http.Request) {
-    fmt.Println(r)
-    body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(body)
-
-    conn, err := net.DialTimeout("tcp",string(body),time.Second*10);
-    if  err != nil {
-       fmt.Println(err.Error())
-       w.Write([]byte(err.Error()))
-       return  
-    }
-    
-    fmt.Println(conn.LocalAddr())
-    fmt.Println(conn.RemoteAddr())
-
-    connMap[conn] = &ConnStat{status:"OK", lock:sync.Mutex{} }
-    go CheckStatus(conn)
-
-    w.Write([]byte("OK"))
 }
 
 func checkError(err error) {
@@ -192,3 +172,76 @@ func getNodeList(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func ConnectNode(w http.ResponseWriter, r *http.Request) {
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    fmt.Println(body)
+
+    conn, err := net.DialTimeout("tcp",string(body),time.Second*10);
+    if  err != nil {
+       fmt.Println(err.Error())
+       w.Write([]byte(err.Error()))
+       return  
+    }
+    
+    fmt.Println(conn.LocalAddr())
+    fmt.Println(conn.RemoteAddr())
+
+    connMap[conn] = &ConnStat{status:"OK", lock:sync.Mutex{} }
+    go CheckStatus(conn)
+
+    w.Write([]byte("OK"))
+}
+
+type LoadHelper struct{
+    Username    string
+    Password    string
+    OutputDir   string
+    TableList []string
+}
+
+func getLoadConfig(w http.ResponseWriter, r *http.Request) {
+
+    LoadConfig := make([]LoadHelper,0)
+    
+    //加载loadConfig.json，
+    jsonData,_ := ioutil.ReadFile("loadConfig.json")
+    if err := json.Unmarshal(jsonData,&LoadConfig); err != nil{
+        w.Write([]byte(err.Error()))
+        return
+    }
+
+    result,_ := json.Marshal(LoadConfig)
+
+    w.Write(result)
+}
+
+//保存loadConfig的配置
+func saveLoadConfig(w http.ResponseWriter, r *http.Request) {
+
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    fmt.Println(body)
+
+    LoadConfig := make([]LoadHelper,0)
+    //保存之前尝试解析，解析出错则返回错误，不保存
+    if err := json.Unmarshal(body,&LoadConfig); err != nil{
+        w.Write([]byte(err.Error()))
+        return
+    }
+
+    result,_ := json.MarshalIndent(LoadConfig, ""," ")
+    fmt.Println(string(result))
+
+    //保存testLoadConfig.json
+    loadconfigFile,err := os.OpenFile( "testLoadConfig.json",os.O_RDWR|os.O_CREATE|os.O_TRUNC,0664)
+    if err != nil {
+        w.Write([]byte(err.Error()))
+        return
+    }
+
+    loadconfigFile.WriteString( string(result) )
+    loadconfigFile.Close()
+    
+    w.Write([]byte("OK"))
+}

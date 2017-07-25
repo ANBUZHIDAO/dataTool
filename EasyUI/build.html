@@ -171,8 +171,6 @@ vm = new Vue({
         return
       }
 
-      
-
       connString = $.ajax({url:"/connect",async:false,type:"POST",dataType:"text",data:this.newAddr});
       if  (connString.responseText == 'OK'){
         //this.nodeList.push({NodeAddr:"192.168.2.34"})

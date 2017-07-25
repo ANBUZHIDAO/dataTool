@@ -8,8 +8,7 @@
     <script type="text/javascript" src="js/jquery.easyui.min.js"></script>
     <script src="js/vue.js"></script>
 <style type="text/css">
-table.tableclass {
-  font-family:"Courier New"; 
+body { 
 } 
 table.tableclass caption{ /*标题*/ 
 text-align:center; 
@@ -47,20 +46,25 @@ font-family:Arial;
         <tbody >
             <tr v-for="(item,index) in loadConfig">
                 <td style="padding-left:8px" > 
-                  <input type="text" v-model="item.Username"></input>
+                  <input type="text" v-model="item.Username" v-on:change="ChangeUsername(item)"></input>
                 </td>
                 <td style="padding-left:8px" > 
                   <input type="text" v-model="item.Password" ></input>
                 </td>
                 <td>
-                  <span class="tagbox-label" v-for="(table,index) in item.TableList">{{ table }}
-                      <a class="tagbox-remove" v-on:click="Del(table,item.TableList)"></a>
-                  </span>
-                  <input v-on:change="AddTable($event.target,item.TableList)" class="textbox-text validatebox-text textbox-prompt" style="width:80px; height:22px; line-height:22px; padding-top: 0px; padding-bottom: 0px;" type="text" >
+                  <table border="2"  class="tableclass" style="width:100%">
+                    <tbody >
+                      <tr v-for="(table,index) in item.TableList">
+                        <td > 
+                          <input type="text" v-model="table" v-on:change="ChangeColumn(index,$event,vCols)"></input>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </td>
                 <td style="padding-left:14px" align="center">
-                    <button class="l-btn l-btn-small"  v-on:click="DelUser(index)">
-                      <span class="l-btn-left"><span class="l-btn-text">删除</span></span>
+                    <button class="l-btn l-btn-small"  v-on:click="NewTable(item)">
+                      <span class="l-btn-left"><span class="l-btn-text">添加新表</span></span>
                     </button>
                     <button class="l-btn l-btn-small"  v-on:click="TestConnect(item)">
                       <span class="l-btn-left"><span class="l-btn-text">测试连接</span></span>
@@ -71,9 +75,9 @@ font-family:Arial;
         <tfoot>
             <tr>
                 <td colspan="4">
-                    <div style="margin-left: 10px">
-                        <button class="easyui-linkbutton" v-on:click="NewUser">新增用户</button>
-                        <button class="easyui-linkbutton" v-on:click="Save">保存配置</button>
+                    <div class="pull-left">
+                        <button class="easyui-linkbutton" v-on:click="Save">保存</button>
+                        <button class="easyui-linkbutton" v-on:click="NewUser">新增</button>
                     </div>    
                 </td>
             </tr>
@@ -103,49 +107,25 @@ vm = new Vue({
       }
     ]
   },
-  created : function (){
-      this.getLoadConfig()
-  },
   methods:{
-    getLoadConfig(){
-      Response = $.ajax({url:"/getLoadConfig",async:false,type:"GET",dataType:"text"});
-      console.log(JSON.stringify(Response))
-      if  (Response.status == "200" ){
-        this.loadConfig = JSON.parse(Response.responseText)
-        console.log(JSON.stringify(this.loadConfig))
-      } else {
-        $.messager.alert("错误", Response.responseText,"error");
-      }
+    ChangeUsername(item){
+
+      console.log(JSON.stringify(item))
     },
-    Del(table,tableList){
-      index = tableList.indexOf(table)
-      tableList.splice(index,1)
+    ChangeKey(key,newkey,vCols){
+      console.log("Key Change from " +  key + " to " + newkey + " ; vCols :" + vCols );
+      delete this.tableList[key]
+      this.tableList[newkey] = vCols;
+      console.log(JSON.stringify(this.tableList));
     },
     NewUser(){
-      this.loadConfig.push({"Username": "newUser","Password": "password","TableList":[]})
+      this.loadConfig.push({"Username": "newUser","Password": "password","OutputDir": "","TableList":[]})
       console.log(JSON.stringify(this.loadConfig));
       
     },
-    DelUser(index){
-      this.loadConfig.splice(index,1)
+    NewTable(item){
+      item.TableList.push("newTable")
       console.log(JSON.stringify(this.loadConfig));
-      
-    },
-    AddTable( input,tableList ){
-      newtabe = input.value
-      console.log(newtabe);
-
-      tabs = newtabe.split(",")
-      console.log(tabs);
-
-      for(var i = 0 ; i < tabs.length; i++){
-        if(tableList.indexOf(tabs[i]) == -1){
-          tableList.push(tabs[i])
-        }
-      }
-
-      console.log(tableList);
-      input.value = ""
     },
     TestConnect(item){
       console.log(JSON.stringify(item))
@@ -154,7 +134,6 @@ vm = new Vue({
     },
     Save(){
       console.log(JSON.stringify(this.loadConfig));
-      response = $.ajax({url:"/saveLoadConfig",async:false,type:"POST",dataType:"text",data:JSON.stringify(this.loadConfig)});
       $.messager.alert("结果", "保存成功","info");
     }
   }
