@@ -8,7 +8,8 @@
     <script type="text/javascript" src="js/jquery.easyui.min.js"></script>
     <script src="js/vue.js"></script>
 <style type="text/css">
-body { 
+table.tableclass { 
+  font-family:"Courier New";
 } 
 table.tableclass caption{ /*标题*/ 
 text-align:center; 
@@ -26,7 +27,8 @@ height:100%;
 padding:1px 3px 1px 3px; 
 margin:0px; 
 border:none; /* 输入框不要边框 */ 
-font-family:Arial; 
+font-family:"Courier New";
+font-size: 15px;
 }
 </style>
 </head>
@@ -43,27 +45,30 @@ font-family:Arial;
             </tr>
         </thead>
         <tbody >
-            <tr v-for="(vCols,key) in tableList">
+            <tr v-for="(vCols,tabname) in ColumnMap" >
                 <td style="padding-left:8px" > 
-                  <input type="text" v-bind:value="key" v-on:change="ChangeKey(key,$event.target.value,vCols); key = $event.target.value"></input>
+                  <span style="font-size:15px;font-family:Courier New"> {{ tabname }}</span>
                 </td>
                 <td>
                   <table border="2"  class="tableclass" style="width:100%">
                     <tbody >
-                      <tr v-for="(varname,index) in vCols">
+                      <tr v-for="(varname,index) in vCols" :key="index">
                         <td > 
-                          <input type="text" v-model="varname" v-on:change="ChangeColumn(index,$event,vCols)"></input>
+                          <input type="text" v-bind:value="varname" v-on:change="ChangeColumn(index,$event,tabname,vCols)"></input>
                         </td>
                         <td style="padding-left:4px" >
-                          <input type="text" v-bind:value="vardefine[varname] || RandConfMap[varname]" v-on:change="ChangeVar(varname,$event)"></input>
+                          <input type="text" v-bind:value="vardefine[tabname+'.'+varname] || RandConfMap[tabname+'.'+varname]" v-on:change="ChangeVarConf(tabname+'.'+varname,$event)"></input>
                         </td>
                       </tr>
                     </tbody>
                   </table>
                 </td>
-                <td style="padding-left:14px" align="center">
+                <td style="padding-left:4px" align="center">
                   <button class="l-btn l-btn-small"  v-on:click="NewColumn(vCols)">
                       <span class="l-btn-left"><span class="l-btn-text">添加新列</span></span>
+                  </button>
+                  <button class="l-btn l-btn-small"  v-on:click="DelTableConf(tabname)">
+                      <span class="l-btn-left"><span class="l-btn-text">删除表配置</span></span>
                   </button>
                 </td>
             </tr>
@@ -71,21 +76,30 @@ font-family:Arial;
         <tfoot>
             <tr>
                 <td colspan="4">
-                    <div class="pull-left">
-                        <button class="easyui-linkbutton" v-on:click="Save">保存</button>
-                        <button class="easyui-linkbutton" v-on:click="NewTable">新增</button>
+                    <div style="margin-left: 10px">
+                        <button class="easyui-linkbutton" v-on:click="NewTable">新增表配置</button>
+                        <span class="textbox" style="width: 160px;padding-left:2px">
+                            <input class="textbox-text validatebox-text" placeholder="newtableName" style="width: 150px;" type="text" v-model="newTablename">
+                        </span>
                     </div>    
                 </td>
             </tr>
         </tfoot>
   </table>
+
+    <div style="float: right;margin-top: 5px">
+          <button class="l-btn l-btn-small"  v-on:click="Save" style="margin:10px;float:right; text-align: center; width:120px">
+            <span style="height:100%;font-size:18px">保存</span>
+          </button>
+    </div>
+
 </div>
 
 <script>
 vm = new Vue({
   el: '#app',
   data: {
-    tableList:{
+    ColumnMap:{
         "inf_subscriber":["sub_id","phone_number","firstname"],
         "dept":["deptno","dname","loc"],
         "emp":["empno","ename"],
@@ -94,34 +108,61 @@ vm = new Vue({
         "emp2":["empno","ename"]
     },
     vardefine:{
-    "deptno":["SV6002000","10"],
-    "sub_id":["SV6002000","10"],
-    "empno":["1000123","10"],
-    "phone_number":["188","1"]
+      "dept.deptno":["SV6002000","10"],
+      "inf_subscriber.sub_id":["SV6002000","10"],
+      "emp.empno":["1000123","10"],
+      "inf_subscriber.phone_number":["188","1"],
+      "dept.empno":["1000123","10"]
     },
     RandConfMap:{
-            "ename":["100","2","3","default"],
-            "dname":["10","5","9","chinese"],
-            "loc":["100","province"]
-    }
+            "emp.ename":["100","2","3","default"],
+            "dept.dname":["10","5","9","chinese"],
+            "dept.loc":["100","province"]
+    },
+    newTablename:""
+  },
+  created : function (){
+
+      Response = $.ajax({url:"/getVardefine",async:false,type:"GET",dataType:"text"});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        this.vardefine = JSON.parse(Response.responseText)
+        console.log(JSON.stringify(this.vardefine))
+      } else {
+        $.messager.alert("错误", "getVardefine Exception：" + Response.responseText,"error");
+      }
+
+      Response = $.ajax({url:"/getColumnMap",async:false,type:"GET",dataType:"text"});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        this.ColumnMap = JSON.parse(Response.responseText)
+        console.log(JSON.stringify(this.ColumnMap))
+      } else {
+        $.messager.alert("错误", "getColumnMap Exception：" + Response.responseText,"error");
+      }
+
+      Response = $.ajax({url:"/getRandConfMap",async:false,type:"GET",dataType:"text"});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        this.RandConfMap = JSON.parse(Response.responseText)
+        console.log(JSON.stringify(this.RandConfMap))
+      } else {
+        $.messager.alert("错误", "getRandConfMap Exception：" + Response.responseText,"error");
+      }
   },
   methods:{
-    Change(key,val){
-      console.log("Click " +  key + " " + val );
-
-      console.log(val)
-      console.log(JSON.stringify(this.tableList));
-    },
-    ChangeKey(key,newkey,vCols){
-      console.log("Key Change from " +  key + " to " + newkey + " ; vCols :" + vCols );
-      delete this.tableList[key]
-      this.tableList[newkey] = vCols;
-      console.log(JSON.stringify(this.tableList));
-    },
-    ChangeColumn(index,event,vCols){
+    ChangeColumn(index,event,tabname,vCols){
       varname = event.target.value
       oldColumn = vCols[index]
 
+      //如果列名为空着认为是要删除这列的配置，只删除 ColumnMap ，不删除vardefine里的配置
+      //注意，目前这种策略下，vardefine.json里会产生垃圾配置
+      if(varname == ""){
+        vCols.splice(index,1)
+        return
+      }
+
+      //如果改的列名已经存在，则改回原值不变
       if(vCols.indexOf(varname) != -1){
         console.log(varname + " already exists, will remain to old value:" + oldColumn);
         event.target.value = oldColumn;
@@ -130,72 +171,101 @@ vm = new Vue({
 
       vCols[index] = varname
       console.log("columns Change from "+ oldColumn + " to " + varname + " ; vCols :" + vCols );
-      console.log(JSON.stringify(this.tableList));
+      console.log(JSON.stringify(this.ColumnMap));
 
-      if(this.vardefine[varname]){
+      //开始刷新列名对应的配置
+      varconfname = tabname + '.'+ varname   //新的在 vardefine.json中的配置名称
+      oldconfname = tabname + '.'+ oldColumn //老的在 vardefine.json中的配置名称
+
+      //如果配置里有新列的配置则直接使用
+      if(this.vardefine[varconfname] || this.RandConfMap[varconfname]){
         console.log(event.target.parentNode.parentNode.getElementsByTagName("INPUT")[1])
-        event.target.parentNode.parentNode.getElementsByTagName("INPUT")[1].value = this.vardefine[varname]
+        event.target.parentNode.parentNode.getElementsByTagName("INPUT")[1].value = this.vardefine[varconfname] || this.RandConfMap[varconfname]
         return
       }
 
-      if(this.RandConfMap[varname]){
-        console.log(event.target.parentNode.parentNode.getElementsByTagName("INPUT")[1])
-        event.target.parentNode.parentNode.getElementsByTagName("INPUT")[1].value = this.RandConfMap[varname]
-        return
-      }
-
-      if(this.vardefine[oldColumn]){
-
-        vardef = this.vardefine[oldColumn]
-        delete this.vardefine[oldColumn]
-        this.vardefine[varname] = vardef
+      //如果配置里没有新列的配置，则继承老列的配置
+      if(this.vardefine[oldconfname]){
+        vardef = this.vardefine[oldconfname]
+        delete this.vardefine[oldconfname]
+        this.vardefine[varconfname] = vardef
         console.log(JSON.stringify(this.vardefine));
-      }else if(this.RandConfMap[oldColumn])
+      }
+      else if(this.RandConfMap[oldconfname])
       {
-        vardef = this.RandConfMap[oldColumn]
-        delete this.RandConfMap[oldColumn]
-        this.RandConfMap[varname] = vardef
+        vardef = this.RandConfMap[oldconfname]
+        delete this.RandConfMap[oldconfname]
+        this.RandConfMap[varconfname] = vardef
         console.log(JSON.stringify(this.RandConfMap));
       }else{
         console.log("New column name hasn't define variable")
       }
     },
-    ChangeVar(varname,event){
+    ChangeVarConf(varConfName,event){
       newdef = event.target.value
       //console.log(event)
       console.log(newdef)
 
       //如果格式正确就修改配置，如果格式错误就设置回原值不变
-      if (/^\w+\d+,\d+$/i.test(newdef)){
+      if (/^(\w+)?\d+,\d+$/i.test(newdef)){
         newvardef = newdef.split(",")
-        this.vardefine[varname] = newvardef
-        delete this.RandConfMap[varname]
+        this.vardefine[varConfName] = newvardef
+        delete this.RandConfMap[varConfName]
         console.log(JSON.stringify(this.vardefine));
       }else if (/^\d+,\d+,\d+,\w+$/i.test(newdef) || /^\d+,\w+$/i.test(newdef)){
         newvardef = newdef.split(",")
-        this.RandConfMap[varname] = newvardef
-        delete this.vardefine[varname]
+        this.RandConfMap[varConfName] = newvardef
+        delete this.vardefine[varConfName]
         console.log(JSON.stringify(this.RandConfMap));
       }else{
         console.log("format Wrong,remain old value")
-        event.target.value = (this.vardefine[varname] || this.RandConfMap[varname]) || ""
+        event.target.value = (this.vardefine[varConfName] || this.RandConfMap[varConfName]) || ""
       }
         
     },
     NewColumn(vCols){
-      console.log("newColumn" + (vCols.length +1))
-      vCols.push("newColumn" + (vCols.length +1))
-      console.log(JSON.stringify(this.tableList));
+      vCols.push("newColumn" + (vCols.length+1))
+      console.log(JSON.stringify(this.ColumnMap));
       
     },
+    DelTableConf(tablename){
+      Vue.delete(this.ColumnMap,tablename)
+      console.log(JSON.stringify(this.ColumnMap));
+    },
     NewTable(){
-      this.$set(this.tableList, "newTable" , ["newColumn"])
-      console.log(JSON.stringify(this.tableList));
+      if(this.newTablename == "" || this.newTablename == null){
+        console.log("Please input new table name.")
+        return 
+      }
+      this.$set(this.ColumnMap, this.newTablename , ["newColumn"])
+      console.log(JSON.stringify(this.ColumnMap));
+      this.newTablename = ""
     },
     Save(){
-      console.log(JSON.stringify(this.tableList));
+      console.log(JSON.stringify(this.ColumnMap));
       console.log(JSON.stringify(this.vardefine));
       console.log(JSON.stringify(this.RandConfMap));
+
+      response = $.ajax({url:"/saveColumnMap",async:false,type:"POST",dataType:"text",data:JSON.stringify(this.ColumnMap)});
+      if (Response.status != "200" ){
+        $.messager.alert("错误", "保存 ColumnMap Exception：" + Response.responseText,"error");
+        return
+      }
+
+      response = $.ajax({url:"/saveVardefine",async:false,type:"POST",dataType:"text",data:JSON.stringify(this.vardefine)});
+      if (Response.status != "200" ){
+        $.messager.alert("错误", "保存 vardefine Exception：" + Response.responseText,"error");
+        return
+      }
+
+      response = $.ajax({url:"/saveRandConfMap",async:false,type:"POST",dataType:"text",data:JSON.stringify(this.RandConfMap)});
+      if (Response.status != "200" ){
+        $.messager.alert("错误", "保存 RandConfMap Exception：" + Response.responseText,"error");
+        return
+      }
+
+      $.messager.alert("结果", "保存成功","info");
+
     }
   }
 });

@@ -36,6 +36,8 @@ var logMap = make(map[string]*log.Logger)
 
 func main(){
 
+    InitConfig()
+
 /*
 	var jsonStruct interface{}
 	jsonData,_ := ioutil.ReadFile("loadConfig.json")
@@ -56,6 +58,14 @@ func main(){
     http.HandleFunc("/nodeInfo", getNodeList) 
     http.HandleFunc("/getLoadConfig", getLoadConfig)
     http.HandleFunc("/saveLoadConfig", saveLoadConfig)
+
+    http.HandleFunc("/getVardefine", getVardefine)
+    http.HandleFunc("/getColumnMap", getColumnMap)
+    http.HandleFunc("/getRandConfMap", getRandConfMap)
+    http.HandleFunc("/saveVardefine", saveVardefine)
+    http.HandleFunc("/saveColumnMap", saveColumnMap)
+    http.HandleFunc("/saveRandConfMap", saveRandConfMap)
+
     http.Handle("/", http.FileServer(http.Dir("EasyUI")))
     http.ListenAndServe(":8060", nil)
     
@@ -193,26 +203,8 @@ func ConnectNode(w http.ResponseWriter, r *http.Request) {
     w.Write([]byte("OK"))
 }
 
-type LoadHelper struct{
-    Username    string
-    Password    string
-    OutputDir   string
-    TableList []string
-}
-
 func getLoadConfig(w http.ResponseWriter, r *http.Request) {
-
-    LoadConfig := make([]LoadHelper,0)
-    
-    //加载loadConfig.json，
-    jsonData,_ := ioutil.ReadFile("loadConfig.json")
-    if err := json.Unmarshal(jsonData,&LoadConfig); err != nil{
-        w.Write([]byte(err.Error()))
-        return
-    }
-
     result,_ := json.Marshal(LoadConfig)
-
     w.Write(result)
 }
 
@@ -221,27 +213,169 @@ func saveLoadConfig(w http.ResponseWriter, r *http.Request) {
 
     fmt.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(body)
+    fmt.Println(string(body))
 
-    LoadConfig := make([]LoadHelper,0)
+    newLoadConfig := make([]LoadHelper,0)
     //保存之前尝试解析，解析出错则返回错误，不保存
-    if err := json.Unmarshal(body,&LoadConfig); err != nil{
+    if err := json.Unmarshal(body,&newLoadConfig); err != nil{
         w.Write([]byte(err.Error()))
         return
     }
 
-    result,_ := json.MarshalIndent(LoadConfig, ""," ")
+    LoadConfig = newLoadConfig
+    //保存到 testLoadConfig.json
+    if err := saveConfig(LoadConfig,"testLoadConfig.json"); err != nil{
+        w.Write([]byte(err.Error()))
+        return
+    }
+    w.Write([]byte("OK"))
+}
+
+
+func getVardefine(w http.ResponseWriter, r *http.Request){
+
+    result,_ := json.Marshal(varDefine)
+    w.Write(result)
+}
+
+//保存Vardefine的配置
+func saveVardefine(w http.ResponseWriter, r *http.Request) {
+
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    fmt.Println(string(body))
+
+    var newVarDefine = make(map[string][]string)   //变量配置
+    //保存之前尝试解析，解析出错则返回错误，不保存
+    if err := json.Unmarshal(body,&newVarDefine); err != nil{
+        w.Write([]byte(err.Error()))
+        return
+    }
+
+    varDefine = newVarDefine
+
+    if err := saveConfig(varDefine,"testVardefine.json"); err != nil{
+        w.Write([]byte(err.Error()))
+        return
+    } 
+    w.Write([]byte("OK"))
+}
+
+func getColumnMap(w http.ResponseWriter, r *http.Request){
+
+    result,_ := json.Marshal(dataConfig.ColumnMap)
+    w.Write(result)
+}
+
+func getRandConfMap(w http.ResponseWriter, r *http.Request){
+
+    result,_ := json.Marshal(dataConfig.RandConfMap)
+    w.Write(result)
+}
+
+//保存ColumnMap的配置
+func saveColumnMap(w http.ResponseWriter, r *http.Request) {
+
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    fmt.Println(string(body))
+
+    var newColumnMap = make(map[string][]string)   //列名配置
+    //保存之前尝试解析，解析出错则返回错误，不保存
+    if err := json.Unmarshal(body,&newColumnMap); err != nil{
+        w.Write([]byte(err.Error()))
+        return
+    }
+
+    dataConfig.ColumnMap = newColumnMap
+    if err := saveConfig(dataConfig,"testDataConfig.json"); err != nil{
+        w.Write([]byte(err.Error()))
+        return
+    }
+    w.Write([]byte("OK"))
+}
+
+//保存 RandConfMap 的配置
+func saveRandConfMap(w http.ResponseWriter, r *http.Request) {
+
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    fmt.Println(string(body))
+
+    var newRandConfMap = make(map[string][]string)   //列名配置
+    //保存之前尝试解析，解析出错则返回错误，不保存
+    if err := json.Unmarshal(body,&newRandConfMap); err != nil{
+        w.Write([]byte(err.Error()))
+        return
+    }
+
+    dataConfig.RandConfMap = newRandConfMap
+    if err := saveConfig(dataConfig,"testDataConfig.json"); err != nil{
+        w.Write([]byte(err.Error()))
+        return
+    }
+    w.Write([]byte("OK"))
+}
+
+func saveConfig(v interface{},filename string)(err error){
+    
+    result,_ := json.MarshalIndent(v, ""," ")
     fmt.Println(string(result))
 
-    //保存testLoadConfig.json
-    loadconfigFile,err := os.OpenFile( "testLoadConfig.json",os.O_RDWR|os.O_CREATE|os.O_TRUNC,0664)
+    vardefineFile,err := os.OpenFile( filename,os.O_RDWR|os.O_CREATE|os.O_TRUNC,0664)
     if err != nil {
-        w.Write([]byte(err.Error()))
-        return
+        return err
     }
 
-    loadconfigFile.WriteString( string(result) )
-    loadconfigFile.Close()
-    
-    w.Write([]byte("OK"))
+    _,err = vardefineFile.WriteString( string(result) )
+    if err != nil {
+        return err
+    }
+
+    vardefineFile.Close()
+    return nil
+}
+
+var varDefine = make(map[string][]string)   //变量配置
+var LoadConfig []LoadHelper
+var dataConfig *DataConfig
+
+type LoadHelper struct{
+    Username    string
+    Password    string
+    TableList   []string
+}
+
+type DataConfig struct{
+    GlobalVar   map[string]int
+    ColumnMap   map[string][]string
+    ExcludeMap  map[string]bool  //使用map判断是否包含在这里面
+    RandConfMap map[string][]string
+    EnumlistMap map[string][]string
+    Models      map[string]int   //模板对应的比重组成的map
+}
+
+
+//加载设置,启动WebServer前设置必须正确加载。
+func InitConfig() {
+    //加载loadConfig.json，
+    jsonData,_ := ioutil.ReadFile("loadConfig.json")
+    if err := json.Unmarshal(jsonData,&LoadConfig); err != nil{
+        panic(err)
+    }
+    fmt.Println(LoadConfig)
+
+    //加载dataConfig.json
+    jsonData,_ = ioutil.ReadFile("dataConfig.json")
+    if err := json.Unmarshal(jsonData,&dataConfig); err != nil{
+        panic(err)
+    }
+    fmt.Println(dataConfig)
+
+    //加载vardefine.json
+    jsonData,_ = ioutil.ReadFile("vardefine.json")
+    if err := json.Unmarshal(jsonData,&varDefine); err != nil{
+        panic(err)
+    }
+    fmt.Println(varDefine)
 }
