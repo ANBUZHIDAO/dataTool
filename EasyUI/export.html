@@ -25,28 +25,24 @@ textarea {
 
 
 <div id="editor" >
-  <div style="margin-bottom:12px">
-    <label class="textbox-label textbox-label-before" style="text-align: center; height: 20px; line-height: 20px;" >模板名称:</label>
-    <span class="textbox textbox-invalid easyui-fluid" style="width: 191px;">
-      <input type="text" class="textbox-text" style="margin: 0px; width: 183px; height: 24px; line-height: 24px; padding-top: 0px; padding-bottom: 0px;" v-model="model" v-bind:disabled="isDisabled"> 
-      </input>
-    </span>
-    <button class="l-btn l-btn-small"  v-on:click="chengEditable($event)">
-        <span class="l-btn-left">
-          <span class="l-btn-text">{{ menu_name }}</span>
-        </span>
-    </button>
+  <div class="panel-header">
+    <span class="panel-title">导出SQL</span>
+    <button class="l-btn l-btn-text"  style="margin-left:40px;width:60px;height: 80%" v-on:click="SaveSQL">保存SQL</button>
   </div>
-  <div class="panel-header panel-title">导出SQL</div>
   <textarea v-model="input"></textarea>
   <div class="pull-left" style="padding: 4px" >
-      <button class="easyui-linkbutton" v-on:click="Save" style="padding-left:12px;padding-right:12px;" >保存</button>
+    <label style="text-align:center;font-size: 80%;border-radius:2px;margin-left: 5px;margin-right: 10px" >模板名称:</label>
+    <span class="textbox textbox-invalid easyui-fluid" style="width: 191px;" v-on:dblclick="ChangeEditable($event.currentTarget)">
+      <span v-if="!isEditable" class="textbox-text" style="width: 183px; height: 24px; line-height: 24px; padding-top: 0px; padding-bottom: 0px;" > {{ model }} </span>
+      <input v-if="isEditable" type="text" class="textbox-text" style="width: 183px; height: 24px; line-height: 24px; padding-top: 0px; padding-bottom: 0px;"  v-model="model" v-on:blur="ChangeEditable"> 
+      </input>
+    </span>
       &nbsp;&nbsp;
       <button class="easyui-linkbutton" v-on:click="Execute" style="padding-left:12px;padding-right:12px;">执行</button>
   </div>
   <div class="panel-header panel-title">执行结果</div>
   <div >
-    <textarea v-model="result"></textarea>
+    <textarea style="height:200px;" v-model="result"></textarea>
   </div>
 </div> 
 
@@ -55,30 +51,67 @@ textarea {
 <script>
 new Vue({
   el: '#editor',
-  data: {
+  data: {  
     model: "model",
-    isDisabled:true,
-    menu_name: "修改",
-    input: " select * from scott.dept r where r.deptno = ''$deptno'' ",
-    result: 'Failed'
+    isEditable:false,
+    input: " select * from scott.dept r where r.deptno = '128188382321'; ",
+    result: ''
+  },
+  created : function (){
+
+      Response = $.ajax({url:"/getExportSQL",async:false,type:"GET",dataType:"text"});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        this.input = JSON.parse(Response.responseText)
+        console.log(JSON.stringify(this.input))
+      } else {
+        $.messager.alert("错误", "getExportSQL Exception：" + Response.responseText,"error");
+      }
   },
   methods:{
-    Save(){
-      console.log(JSON.stringify(this.input))
-    },
-    chengEditable(event){
-      console.log(event)
-      console.log(this.model)
-      this.isDisabled = !this.isDisabled
-      if(this.isDisabled){
-        this.menu_name = "修改"
-      }else {
-        this.menu_name = "确定"
-      }
-    },
     Execute(){
-      console.log(JSON.stringify(this.input))
-      //执行时并不顺便就保存
+      console.log(this.input)
+      //执行后保存结果到/source/模板名称 目录下
+      sqllist = this.input.split(";")
+      finalSQL = ""
+      //简单的判断：不是全空格的，替换掉换行符 组装成所需要的SQL。
+      for(var i =0; i < sqllist.length; i++){
+        if (sqllist[i].search(/[\w]+/i) != -1){
+          finalSQL= finalSQL + "export_table(' " + sqllist[i].replace(/\'/g,"''").replace(/[\r\n]/g,"") + " ');\n"
+        }
+      }
+
+      console.log(finalSQL)
+      Response = $.ajax({url:"/executeExportSQL",async:false,type:"POST",dataType:"text",data:this.input});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        this.result = JSON.parse(Response.responseText)
+        console.log(JSON.stringify(this.result))
+      } else {
+        $.messager.alert("错误", "executeExportSQL Exception：" + Response.responseText,"error");
+      }
+
+    },
+    SaveSQL(){
+      console.log(this.input)
+      response = $.ajax({url:"/saveExportSQL",async:false,type:"POST",dataType:"text",data:this.input});
+      $.messager.alert("结果", "保存成功","info");
+
+    },
+    ChangeEditable(element){
+      console.log("ChangeEditable")
+      this.isEditable = !this.isEditable
+
+      //必须获取焦点，不主动获取焦点会出现双击后输入框没获取焦点，此时界面上其他地方单击（意思是不想修改了）不会触发失去焦点事件，一直保持输入框--可编辑状态
+      //必须延迟等页面渲染完后再去使INPUT获取焦点，立即是获取不到INPUT元素的
+      var getInput = function(){
+        console.log(element.getElementsByTagName("INPUT"))
+        element.getElementsByTagName("INPUT")[0].focus()
+      }
+
+      if(element.nodeName == "SPAN"){
+        setTimeout(getInput,100);
+      }
     }
   }
 })

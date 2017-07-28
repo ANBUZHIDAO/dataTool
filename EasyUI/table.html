@@ -181,6 +181,10 @@ vm = new Vue({
       if(this.vardefine[varconfname] || this.RandConfMap[varconfname]){
         console.log(event.target.parentNode.parentNode.getElementsByTagName("INPUT")[1])
         event.target.parentNode.parentNode.getElementsByTagName("INPUT")[1].value = this.vardefine[varconfname] || this.RandConfMap[varconfname]
+
+        //删除老的配置
+        delete this.vardefine[varconfname]
+        delete this.RandConfMap[varconfname]   
         return
       }
 

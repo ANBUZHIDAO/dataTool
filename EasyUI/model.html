@@ -7,8 +7,6 @@
   <script type="text/javascript" src="js/jquery.easyui.min.js"></script>
   <script src="js/vue.js"></script>
 <style type="text/css">
-body { 
-} 
 table.tableclass caption{ /*标题*/ 
 text-align:center; 
 padding-bottom:6px;
@@ -24,13 +22,12 @@ width:90%;
 height:100%;
 padding:1px 3px 1px 3px; 
 margin:0px; 
-border:none; /* 输入框不要边框 */ 
+border:0; /* 输入框不要边框 */ 
 font-family:Arial; 
 }
 </style>
 </head>
 <body>
-
 
 <div id="editor" >
   
@@ -39,33 +36,27 @@ font-family:Arial;
   <table border="2"  class="tableclass" style="float:none; padding-left:2px;width:100%">
         <thead>
             <tr>
-                <th width="30%" style="font-family:KaiTi">源数据</th>
-                <th width="70%" style="font-family:KaiTi">模板</th>
+                <th width="40%" style="font-family:KaiTi">源数据</th>
+                <th width="60%" style="font-family:KaiTi">模板</th>
             </tr>
         </thead>
         <tbody >
             <tr>
               <td> 
                 <table border="1" class="tableclass" style="float:left;width:100%">
-                <thead border="0" >
-                  <tr>
-                    <th width="30%"></th>
-                    <th width="70%"></th>
-                  </tr>
-                </thead>
                 <tbody >
 
                   <tr v-for="(sourcename,index) in sourceList">
-                    <td style="padding-left:8px" > 
-                    <input type="text" v-bind:value="sourcename"></input>
+                    <td style="padding-left:8px;width:30%" > 
+                      <span style="font-size:15px;font-family:Courier New"> {{ sourcename }}</span>
                     </td>
-                    <td style="padding-left:14px" align="center">
-                    <button class="l-btn l-btn-small"  v-on:click="genModel(sourcename)">
-                      <span class="l-btn-left"><span class="l-btn-text">生成模板</span></span>
-                    </button>
-                    <button class="l-btn l-btn-small"  v-on:click="genModel(sourcename)">
-                      <span class="l-btn-left"><span class="l-btn-text">查看</span></span>
-                    </button>
+                    <td style="padding-left:14px;width:70%" align="center">
+                      <button class="l-btn l-btn-small"  v-on:click="genModel(sourcename)">
+                        <span class="l-btn-left l-btn-text ">生成模板</span>
+                      </button>
+                      <button class="l-btn l-btn-small"  v-on:click="checkDetail(sourcename,1)">
+                        <span class="l-btn-left l-btn-text">查看</span>
+                      </button>
                     </td>
                   </tr>
                 </tbody>
@@ -73,27 +64,20 @@ font-family:Arial;
               </td>
               <td>
                 <table border="1"  class="tableclass" style="float:left;width:100%">
-                <thead>
-                  <tr>
-                    <th width="30%"></th>
-                    <th width="10%"></th>
-                    <th width="60%"></th>
-                  </tr>
-                </thead>
                 <tbody >
-                  <tr v-for="(weight,modelname) in modelList">
-                    <td style="padding-left:8px" > 
-                      <input type="text" v-bind:value="modelname"></input>
+                  <tr v-for="(weight,modelname) in modelConfig">
+                    <td style="padding-left:8px;width:30%" >
+                      <span style="font-size:15px;font-family:Courier New"> {{ modelname }}</span>
                     </td>
-                    <td > 
-                      <input type="text" v-bind:value="weight"></input>
+                    <td style="padding-left:4px;width:10%"> 
+                      <input type="text" v-model="weight"></input>
                     </td>
-                    <td style="padding-left:14px" align="center">
+                    <td style="padding-left:14px;width:60%" align="center">
                       <button class="l-btn l-btn-small"  v-on:click="genModel(modelname)">
-                      <span class="l-btn-left"><span class="l-btn-text">删除</span></span>
+                        <span class="l-btn-left l-btn-text">删除</span>
                       </button>
-                      <button class="l-btn l-btn-small"  v-on:click="genModel(modelname)">
-                      <span class="l-btn-left"><span class="l-btn-text">查看</span></span>
+                      <button class="l-btn l-btn-small"  v-on:click="checkDetail(modelname,2)">
+                        <span class="l-btn-left l-btn-text">查看</span>
                       </button>
                     </td>
                   </tr>
@@ -104,40 +88,79 @@ font-family:Arial;
         </tbody>
   </table>
 
-<div class="pull-left">
-  <button class="easyui-linkbutton" style="margin-top:6px;padding-left:12px;padding-right:12px" v-on:click="Save">刷新</button>
-  <button class="easyui-linkbutton" style="margin-top:6px;padding-left:12px;padding-right:12px" v-on:click="Refresh">保存</button>
-</div>
-</div> 
+  <div class="pull-left" style="padding-left:4px">
+    <button class="easyui-linkbutton" style="margin-top:6px;padding-left:12px;padding-right:12px" v-on:click="Save">保存模板配置</button>
+  </div>
+
+  <div class="panel window panel-htop panel-header panel-header-noborder window-header" style="left: 2%; top: 10%; width: 95%; display: block;" v-show="isShowDetail">
+    <div class="panel-header" style="width: 100%">
+      <div class="panel-title" style="width: 100%">详细信息</div>
+      <div class="panel-tool" style="margin-right: 4px" v-on:click="isShowDetail=false"> <a class="panel-tool-close" ></a> </div>
+    </div>
   
+    <textarea style="height:300px;width:100%" v-bind:value="detail" readonly="readonly"> </textarea>
 
+  </div>
 
+</div> 
+
+  
 
 <script>
 new Vue({
   el: '#editor',
   data: {
-    sourceList:["prepaid1","4G1","3G1"],
-    modelList:{
-    "dept.deptno":1,
-    "inf_subscriber.sub_id":1,
-    "emp.empno":1,
-    "inf_subscriber.phone_number":1,
-    "dept.empno":1
-    }
+    sourceList:["prepaid1","prepaid2","prepaid3","Postpaid"],
+    modelConfig:{
+      "prepaid1":1,
+      "prepaid2":1,
+      "prepaid3":1
+    },
+    isShowDetail:false,
+    detail:"inf_subscriber 1234,1234,123sfdsf"
+  },
+  created : function (){
+
+      Response = $.ajax({url:"/getModels",async:false,type:"GET",dataType:"text"});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        modelData = JSON.parse(Response.responseText)
+        console.log(JSON.stringify(modelData))
+      } else {
+        $.messager.alert("错误", "getModels Exception：" + Response.responseText,"error");
+      }
   },
   methods:{
     Save(){
       console.log(JSON.stringify(this.sourceList))
-      console.log(JSON.stringify(this.modelList))
+      console.log(JSON.stringify(this.modelConfig))
+
+      Response = $.ajax({url:"/saveModelConfig",async:false,type:"POST",dataType:"text",data:this.modelConfig});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        $.messager.alert("结果", "保存成功","info");
+      } else {
+        $.messager.alert("错误", "Save Exception :" + Response.responseText,"error");
+      }
+
     },
     genModel(sourcename){
-      console.log(sourcename)   
+      console.log(sourcename)
+
+      Response = $.ajax({url:"/genModel",async:false,type:"POST",dataType:"text",data:sourcename});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        $.messager.alert("结果", "保存成功","info");
+        modelConfig[sourcename] = 1
+      } else {
+        $.messager.alert("错误", "genModel Exception:" + Response.responseText,"error");
+      }   
     },
-    Refresh(){
-      console.log(JSON.stringify(this.sourceList))
-      console.log(JSON.stringify(this.modelList))
-      //执行时并不顺便就保存
+    checkDetail(sourcename,type){
+      console.log(sourcename)
+
+      this.isShowDetail=true
+         
     }
   }
 })
