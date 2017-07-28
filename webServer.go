@@ -66,6 +66,10 @@ func main(){
     http.HandleFunc("/saveColumnMap", saveColumnMap)
     http.HandleFunc("/saveRandConfMap", saveRandConfMap)
 
+    http.HandleFunc("/getExportSQL", getExportSQL)
+    http.HandleFunc("/executeExportSQL", executeExportSQL)
+    http.HandleFunc("/saveExportSQL", saveExportSQL)
+
     http.Handle("/", http.FileServer(http.Dir("EasyUI")))
     http.ListenAndServe(":8060", nil)
     
@@ -223,8 +227,8 @@ func saveLoadConfig(w http.ResponseWriter, r *http.Request) {
     }
 
     LoadConfig = newLoadConfig
-    //保存到 testLoadConfig.json
-    if err := saveConfig(LoadConfig,"testLoadConfig.json"); err != nil{
+    fileContent,_ := json.MarshalIndent(LoadConfig, ""," ")
+    if err := saveConfig(fileContent,"testLoadConfig.json"); err != nil{
         w.Write([]byte(err.Error()))
         return
     }
@@ -253,8 +257,8 @@ func saveVardefine(w http.ResponseWriter, r *http.Request) {
     }
 
     varDefine = newVarDefine
-
-    if err := saveConfig(varDefine,"testVardefine.json"); err != nil{
+    fileContent,_ := json.MarshalIndent(varDefine, ""," ")
+    if err := saveConfig(fileContent,"testVardefine.json"); err != nil{
         w.Write([]byte(err.Error()))
         return
     } 
@@ -288,7 +292,8 @@ func saveColumnMap(w http.ResponseWriter, r *http.Request) {
     }
 
     dataConfig.ColumnMap = newColumnMap
-    if err := saveConfig(dataConfig,"testDataConfig.json"); err != nil{
+    fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
+    if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
         w.Write([]byte(err.Error()))
         return
     }
@@ -310,24 +315,22 @@ func saveRandConfMap(w http.ResponseWriter, r *http.Request) {
     }
 
     dataConfig.RandConfMap = newRandConfMap
-    if err := saveConfig(dataConfig,"testDataConfig.json"); err != nil{
+    fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
+    if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
         w.Write([]byte(err.Error()))
         return
     }
     w.Write([]byte("OK"))
 }
 
-func saveConfig(v interface{},filename string)(err error){
-    
-    result,_ := json.MarshalIndent(v, ""," ")
-    fmt.Println(string(result))
+func saveConfig(fileContent []byte,filename string)(err error){
 
     vardefineFile,err := os.OpenFile( filename,os.O_RDWR|os.O_CREATE|os.O_TRUNC,0664)
     if err != nil {
         return err
     }
 
-    _,err = vardefineFile.WriteString( string(result) )
+    _,err = vardefineFile.WriteString( string(fileContent) )
     if err != nil {
         return err
     }
@@ -339,6 +342,7 @@ func saveConfig(v interface{},filename string)(err error){
 var varDefine = make(map[string][]string)   //变量配置
 var LoadConfig []LoadHelper
 var dataConfig *DataConfig
+var exportsql   []byte
 
 type LoadHelper struct{
     Username    string
@@ -378,4 +382,48 @@ func InitConfig() {
         panic(err)
     }
     fmt.Println(varDefine)
+
+    //加载 export.sql
+    exportsql,_ = ioutil.ReadFile("export.sql")
+    fmt.Println(string(exportsql))
+
+}
+
+//获取export.sql的内容
+func getExportSQL(w http.ResponseWriter, r *http.Request) {
+    w.Write(exportsql)
+}
+
+//保存 ExportSQL 的配置
+func saveExportSQL(w http.ResponseWriter, r *http.Request) {
+
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    fmt.Println(string(body))
+    exportsql = body
+
+    if err := saveConfig(exportsql,"testExport.sql"); err != nil{
+        w.Write([]byte(err.Error()))
+        return
+    }
+    w.Write([]byte("OK"))
+}
+
+//执行 exportSQL 导出源数据
+func executeExportSQL(w http.ResponseWriter, r *http.Request) {
+
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    exportsql = body
+
+    fmt.Println(string(exportsql))
+
+    //先执行创建替换directory的语句
+    //util.ExecSQLPlus("create or replace directory WORKSPACE as '"+ AbsPath + "';")
+
+    //content := util.ExecSQLPlus(SqlString)
+    //w.Write([]byte(content))
+
+    w.Write([]byte("OK"))
+
 }

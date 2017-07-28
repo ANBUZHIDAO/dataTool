@@ -62,8 +62,8 @@ new Vue({
       Response = $.ajax({url:"/getExportSQL",async:false,type:"GET",dataType:"text"});
       console.log(JSON.stringify(Response))
       if  (Response.status == "200" ){
-        this.input = JSON.parse(Response.responseText)
-        console.log(JSON.stringify(this.input))
+        this.input = Response.responseText
+        console.log(this.input)
       } else {
         $.messager.alert("错误", "getExportSQL Exception：" + Response.responseText,"error");
       }
@@ -85,7 +85,7 @@ new Vue({
       Response = $.ajax({url:"/executeExportSQL",async:false,type:"POST",dataType:"text",data:this.input});
       console.log(JSON.stringify(Response))
       if  (Response.status == "200" ){
-        this.result = JSON.parse(Response.responseText)
+        this.result = Response.responseText
         console.log(JSON.stringify(this.result))
       } else {
         $.messager.alert("错误", "executeExportSQL Exception：" + Response.responseText,"error");
