@@ -82,9 +82,15 @@ new Vue({
       }
 
       console.log(finalSQL)
-      Response = $.ajax({url:"/executeExportSQL",async:false,type:"POST",dataType:"text",data:this.input});
-      console.log(JSON.stringify(Response))
-      if  (Response.status == "200" ){
+
+      var exportRequest = new Object()
+
+      exportRequest.sql = finalSQL
+      exportRequest.modelname = this.model
+
+      Response = $.ajax({url:"/executeExportSQL",async:false,type:"POST",dataType:"text",data:JSON.stringify(exportRequest)});
+      console.log(JSON.stringify(exportRequest))
+      if  (Response.status == "200"){
         this.result = Response.responseText
         console.log(JSON.stringify(this.result))
       } else {

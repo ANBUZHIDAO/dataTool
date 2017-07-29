@@ -70,6 +70,10 @@ func main(){
     http.HandleFunc("/executeExportSQL", executeExportSQL)
     http.HandleFunc("/saveExportSQL", saveExportSQL)
 
+    http.HandleFunc("/getSourceList", getSourceList)
+    http.HandleFunc("/getModelConfig", getModelConfig) 
+    http.HandleFunc("/saveModelConfig", saveModelConfig)
+
     http.Handle("/", http.FileServer(http.Dir("EasyUI")))
     http.ListenAndServe(":8060", nil)
     
@@ -194,6 +198,7 @@ func ConnectNode(w http.ResponseWriter, r *http.Request) {
     conn, err := net.DialTimeout("tcp",string(body),time.Second*10);
     if  err != nil {
        fmt.Println(err.Error())
+       w.WriteHeader(500)
        w.Write([]byte(err.Error()))
        return  
     }
@@ -222,6 +227,7 @@ func saveLoadConfig(w http.ResponseWriter, r *http.Request) {
     newLoadConfig := make([]LoadHelper,0)
     //保存之前尝试解析，解析出错则返回错误，不保存
     if err := json.Unmarshal(body,&newLoadConfig); err != nil{
+        w.WriteHeader(500)
         w.Write([]byte(err.Error()))
         return
     }
@@ -229,6 +235,7 @@ func saveLoadConfig(w http.ResponseWriter, r *http.Request) {
     LoadConfig = newLoadConfig
     fileContent,_ := json.MarshalIndent(LoadConfig, ""," ")
     if err := saveConfig(fileContent,"testLoadConfig.json"); err != nil{
+        w.WriteHeader(500)
         w.Write([]byte(err.Error()))
         return
     }
@@ -252,6 +259,7 @@ func saveVardefine(w http.ResponseWriter, r *http.Request) {
     var newVarDefine = make(map[string][]string)   //变量配置
     //保存之前尝试解析，解析出错则返回错误，不保存
     if err := json.Unmarshal(body,&newVarDefine); err != nil{
+        w.WriteHeader(500)
         w.Write([]byte(err.Error()))
         return
     }
@@ -259,6 +267,7 @@ func saveVardefine(w http.ResponseWriter, r *http.Request) {
     varDefine = newVarDefine
     fileContent,_ := json.MarshalIndent(varDefine, ""," ")
     if err := saveConfig(fileContent,"testVardefine.json"); err != nil{
+        w.WriteHeader(500)
         w.Write([]byte(err.Error()))
         return
     } 
@@ -287,6 +296,7 @@ func saveColumnMap(w http.ResponseWriter, r *http.Request) {
     var newColumnMap = make(map[string][]string)   //列名配置
     //保存之前尝试解析，解析出错则返回错误，不保存
     if err := json.Unmarshal(body,&newColumnMap); err != nil{
+        w.WriteHeader(500)
         w.Write([]byte(err.Error()))
         return
     }
@@ -294,6 +304,7 @@ func saveColumnMap(w http.ResponseWriter, r *http.Request) {
     dataConfig.ColumnMap = newColumnMap
     fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
     if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
+        w.WriteHeader(500)
         w.Write([]byte(err.Error()))
         return
     }
@@ -310,6 +321,7 @@ func saveRandConfMap(w http.ResponseWriter, r *http.Request) {
     var newRandConfMap = make(map[string][]string)   //列名配置
     //保存之前尝试解析，解析出错则返回错误，不保存
     if err := json.Unmarshal(body,&newRandConfMap); err != nil{
+        w.WriteHeader(500)
         w.Write([]byte(err.Error()))
         return
     }
@@ -317,6 +329,7 @@ func saveRandConfMap(w http.ResponseWriter, r *http.Request) {
     dataConfig.RandConfMap = newRandConfMap
     fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
     if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
+        w.WriteHeader(500)
         w.Write([]byte(err.Error()))
         return
     }
@@ -403,6 +416,7 @@ func saveExportSQL(w http.ResponseWriter, r *http.Request) {
     exportsql = body
 
     if err := saveConfig(exportsql,"testExport.sql"); err != nil{
+        w.WriteHeader(500)
         w.Write([]byte(err.Error()))
         return
     }
@@ -414,9 +428,15 @@ func executeExportSQL(w http.ResponseWriter, r *http.Request) {
 
     fmt.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    exportsql = body
+    executesql := make(map[string]string)
 
-    fmt.Println(string(exportsql))
+    if err := json.Unmarshal(body,&executesql); err != nil{
+        w.WriteHeader(500)
+        w.Write([]byte(err.Error()))
+        return
+    }
+
+    fmt.Println(executesql)
 
     //先执行创建替换directory的语句
     //util.ExecSQLPlus("create or replace directory WORKSPACE as '"+ AbsPath + "';")
@@ -426,4 +446,73 @@ func executeExportSQL(w http.ResponseWriter, r *http.Request) {
 
     w.Write([]byte("OK"))
 
+}
+
+
+//获取souce目录下源数据目录列表
+func getSourceList(w http.ResponseWriter, r *http.Request) {
+    fileInfos,_ := ioutil.ReadDir("source")
+    var sourceList = make([]string,0)
+
+    for _,v := range fileInfos{
+        if(v.IsDir()){
+            fmt.Println(v.Name())
+            sourceList = append(sourceList,v.Name())
+        }
+    }
+
+    fmt.Println(sourceList)
+
+    result,_ := json.Marshal(sourceList)
+    w.Write(result)
+}
+
+//获取 模板比重配置，处理时删除已不存在的配置，未增加的模板比例权重置为0
+func getModelConfig(w http.ResponseWriter, r *http.Request) {
+    for modelname,_ := range dataConfig.Models {
+        fileInfo,err := os.Stat("model/"+ modelname)
+        if err != nil || !fileInfo.IsDir(){
+            delete(dataConfig.Models, modelname)
+        }
+    }
+
+    modelFiles,_ := ioutil.ReadDir("model")
+
+    for _,v := range modelFiles{
+        if(v.IsDir()){
+            fmt.Println(v.Name())
+            if _,ok := dataConfig.Models[v.Name()]; !ok{
+                dataConfig.Models[v.Name()] = 0
+            }
+        }
+    }
+
+    fmt.Println(dataConfig.Models)
+    result,_ := json.Marshal(dataConfig.Models)
+    w.Write(result)
+}
+
+
+//保存模板配置
+func saveModelConfig(w http.ResponseWriter, r *http.Request) {
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    fmt.Println(string(body))
+
+    var Models =make(map[string]int)   //模板配置
+    //保存之前尝试解析，解析出错则返回错误，不保存
+    if err := json.Unmarshal(body,&Models); err != nil{
+        w.WriteHeader(500)
+        w.Write([]byte(err.Error()))
+        return
+    }
+
+    dataConfig.Models = Models
+    fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
+    if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
+        w.WriteHeader(500)
+        w.Write([]byte(err.Error()))
+        return
+    }
+    w.Write([]byte("OK"))
 }

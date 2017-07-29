@@ -65,12 +65,12 @@ font-family:Arial;
               <td>
                 <table border="1"  class="tableclass" style="float:left;width:100%">
                 <tbody >
-                  <tr v-for="(weight,modelname) in modelConfig">
+                  <tr v-for="(weight,modelname) in modelConfig" >
                     <td style="padding-left:8px;width:30%" >
                       <span style="font-size:15px;font-family:Courier New"> {{ modelname }}</span>
                     </td>
                     <td style="padding-left:4px;width:10%"> 
-                      <input type="text" v-model="weight"></input>
+                      <input type="text" v-model="weight" v-on:change="changeWeight(modelname,$event.target)"></input>
                     </td>
                     <td style="padding-left:14px;width:60%" align="center">
                       <button class="l-btn l-btn-small"  v-on:click="genModel(modelname)">
@@ -117,17 +117,24 @@ new Vue({
       "prepaid3":1
     },
     isShowDetail:false,
-    detail:"inf_subscriber 1234,1234,123sfdsf"
+    detail:"获取模板或源数据详情功能，待添加"
   },
   created : function (){
 
-      Response = $.ajax({url:"/getModels",async:false,type:"GET",dataType:"text"});
+      Response = $.ajax({url:"/getSourceList",async:false,type:"GET",dataType:"text"});
       console.log(JSON.stringify(Response))
       if  (Response.status == "200" ){
-        modelData = JSON.parse(Response.responseText)
-        console.log(JSON.stringify(modelData))
+        this.sourceList = JSON.parse(Response.responseText)
       } else {
-        $.messager.alert("错误", "getModels Exception：" + Response.responseText,"error");
+        $.messager.alert("错误", "getSourceList Exception：" + Response.responseText,"error");
+      }
+
+      Response = $.ajax({url:"/getModelConfig",async:false,type:"GET",dataType:"text"});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        this.modelConfig = JSON.parse(Response.responseText)
+      } else {
+        $.messager.alert("错误", "getModelConfig Exception：" + Response.responseText,"error");
       }
   },
   methods:{
@@ -135,7 +142,7 @@ new Vue({
       console.log(JSON.stringify(this.sourceList))
       console.log(JSON.stringify(this.modelConfig))
 
-      Response = $.ajax({url:"/saveModelConfig",async:false,type:"POST",dataType:"text",data:this.modelConfig});
+      Response = $.ajax({url:"/saveModelConfig",async:false,type:"POST",dataType:"text",data:JSON.stringify(this.modelConfig)});
       console.log(JSON.stringify(Response))
       if  (Response.status == "200" ){
         $.messager.alert("结果", "保存成功","info");
@@ -143,6 +150,15 @@ new Vue({
         $.messager.alert("错误", "Save Exception :" + Response.responseText,"error");
       }
 
+    },
+    changeWeight(modelname,input){
+      if(/^\d+$/.test(input.value)){
+        this.modelConfig[modelname] = Number(input.value)
+      }
+      else{
+        input.value = this.modelConfig[modelname]
+      }
+      
     },
     genModel(sourcename){
       console.log(sourcename)

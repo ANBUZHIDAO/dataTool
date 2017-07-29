@@ -23,8 +23,8 @@
             "province":["Henan","Henan","Shandong","Shandong","Jiangsu","Hubei"]
     },
     "Models":{
-        "model":  1,
-        "model2": 1,
-        "model3": 1
+        "prepaid1": 1,
+        "prepaid2": 1,
+        "prepaid3": 1
     }
 }
