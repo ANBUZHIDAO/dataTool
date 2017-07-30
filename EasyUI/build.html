@@ -41,6 +41,26 @@ background-image: url(images/checkbox_01.gif);
 background-repeat: no-repeat;
 background-position: 0 -21px;
 }
+.connectOK {
+height: 18px;
+width: 20px;
+float: right;
+cursor: pointer;
+margin-right: 2px;
+background-image: url(images/tabicons.png);
+background-repeat: no-repeat;
+background-position: -100px -380px;
+}
+.connectNOK {
+height: 18px;
+width: 20px;
+float: right;
+cursor: pointer;
+margin-right: 2px;
+background-image: url(images/tabicons.png);
+background-repeat: no-repeat;
+background-position: -100px -420px;
+}
 </style>
 </head>
 
@@ -93,15 +113,16 @@ background-position: 0 -21px;
   <table border="1"  class="tableclass" style="float:left;width:100%">
         <thead>
             <tr >
-              <th width="15%">节点名</th>
-              <th width="65%">数据配置(目录，表名，大小)</th>
-              <th width="20%">操作</th>
+              <th width="18%">节点名</th>
+              <th width="62%">数据配置(目录，表名，大小)</th>
+              <th width="18%">操作</th>
             </tr>
         </thead>
         <tbody style="font-size:14px">
             <tr v-for="(nodeConfig,index) in nodeList">
                 <td style="padding-left:5px" > 
                   <span >{{nodeConfig.NodeAddr}}</span>
+                  <a v-bind:class="[ (NodeStatus[nodeConfig.NodeAddr] != 'OK') ? 'connectNOK' : 'connectOK' ]" ></a>
                 </td>
                 <td >
                   <table border="0"  class="tableclass" style="width:100%" >
@@ -133,10 +154,13 @@ background-position: 0 -21px;
                 </td>
                 <td style="padding-left:4px" >
                   <button class="l-btn l-btn-small" v-on:click="newOutDir(nodeConfig)">
-                      <span class="l-btn-left"><span class="l-btn-text">新增目录</span></span>
+                      <span class="l-btn-left"><span class="l-btn-text">增加目录</span></span>
                   </button>
                   <button class="l-btn l-btn-small"  v-on:click="removeNode(index)">
                       <span class="l-btn-left"><span class="l-btn-text">删除节点</span></span>
+                  </button>
+                  <button class="l-btn l-btn-small"  v-on:click="reConnect(nodeConfig)">
+                      <span class="l-btn-left"><span class="l-btn-text">重连</span></span>
                   </button>
                 </td>
             </tr>
@@ -146,7 +170,7 @@ background-position: 0 -21px;
 
   <p>
 
-  <button class="l-btn l-btn-small"  v-on:click="Save" style="margin-top:10px;float:right; text-align: center; width:120px">
+  <button class="l-btn l-btn-small"  v-on:click="saveNodeList" style="margin-top:10px;float:right; text-align: center; width:120px">
     <span style="height:100%;font-size:18px">保存</span>
   </button>
    
@@ -179,11 +203,35 @@ vm = new Vue({
           }
         }
       ],
+      NodeStatus :{
+        "192.168.1.112:4412": "OK",
+        "192.168.1.111:4412": "NOK"
+      },
     TableList:["inf_subs1","om_dispatch_order_his2","inf_cust3","inf_acct4","inf_cust5","inf_acct6","inf_cust7","inf_acct8","inf_cust9","inf_acct10","inf_cust11","inf_acct12","om_dispatch_order_his"],
     Selected:[],
     selectedNode:"",
     selectedConfig:{},
     selectDir:"",
+  },
+  created : function (){
+
+      Response = $.ajax({url:"/getNodeList",async:false,type:"GET",dataType:"text"});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        this.nodeList = JSON.parse(Response.responseText)
+        console.log(JSON.stringify(this.nodeList))
+      } else {
+        $.messager.alert("错误", "getNodeList Exception：" + Response.responseText,"error");
+      }
+
+      Response = $.ajax({url:"/getNodeStatus",async:false,type:"GET",dataType:"text"});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        this.NodeStatus = JSON.parse(Response.responseText)
+        console.log(JSON.stringify(this.NodeStatus))
+      } else {
+        $.messager.alert("错误", "getNodeStatus Exception：" + Response.responseText,"error");
+      }
   },
   watch: { selectedNode: 'getNodeConfig' },
   methods:{
@@ -193,32 +241,54 @@ vm = new Vue({
         return
       }
 
-      connString = $.ajax({url:"/connect",async:false,type:"POST",dataType:"text",data:this.newAddr});
+      Response = $.ajax({url:"/connect",async:false,type:"POST",dataType:"text",data:this.newAddr});
+      console.log(JSON.stringify(Response))
       if  (Response.status == "200"){
+        this.NodeStatus[this.newAddr] = "OK"
         this.nodeList.push({NodeAddr:this.newAddr,Config:{}})
 
       } else {
-        $.messager.alert("错误", connString.responseText,"error");
+        $.messager.alert("错误", Response.responseText,"error");
       }
 
       this.newAddr = ""
     },
+    reConnect(nodeConfig){
+
+      Response = $.ajax({url:"/connect",async:false,type:"POST",dataType:"text",data:nodeConfig.NodeAddr});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200"){
+        this.NodeStatus[nodeConfig.NodeAddr] = "OK"
+      } else {
+        $.messager.alert("错误", Response.responseText,"error");
+      }
+
+    },
     removeNode( index ){
       nodes = this.nodeList
       Addr = nodes[index].NodeAddr
+      NodeStatus = this.NodeStatus
 
       removeDir = this.removeDir
 
       var callBack = function(b){
         if (b){
-          alert('确定');  //待添加断开节点功能
+          response = $.ajax({url:"/removeConnect",async:false,type:"POST",dataType:"text",data:Addr});
+          if  (Response.status == "200"){
+            Vue.delete(NodeStatus , Addr)
 
-          for (dir in nodes[index].Config){
-            removeDir(nodes[index].Config,dir)
+            for (dir in nodes[index].Config){
+              removeDir(nodes[index].Config,dir)
+            }
+
+            nodes.splice(index,1)
+
+          } else {
+            $.messager.alert("错误", response.responseText,"error");
           }
-          nodes.splice(index,1)  
+    
         }else{
-          alert('取消');
+          //alert('取消');
           return  
         }
       }
@@ -262,8 +332,15 @@ vm = new Vue({
 
       console.log(this.selectDir)
     },
-    Save(){
+    saveNodeList(){
       console.log(JSON.stringify(this.nodeList));
+
+      response = $.ajax({url:"/saveNodeList",async:false,type:"POST",dataType:"text",data:JSON.stringify(this.nodeList)});
+      if (Response.status != "200" ){
+        $.messager.alert("错误", "保存 nodeList Exception：" + Response.responseText,"error");
+        return
+      }
+
     },
     SelectAll(){
       this.Selected = []

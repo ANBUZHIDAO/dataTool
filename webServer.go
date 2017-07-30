@@ -55,7 +55,11 @@ func main(){
 	//time.Sleep(120* time.Second)
 
     http.HandleFunc("/connect", ConnectNode) 
-    http.HandleFunc("/nodeInfo", getNodeList) 
+    http.HandleFunc("/removeConnect", removeConnect)
+    http.HandleFunc("/getNodeStatus", getNodeStatus) 
+    http.HandleFunc("/getNodeList", getNodeList) 
+    http.HandleFunc("/saveNodeList", saveNodeList) 
+
     http.HandleFunc("/getLoadConfig", getLoadConfig)
     http.HandleFunc("/saveLoadConfig", saveLoadConfig)
 
@@ -126,8 +130,10 @@ func sendMessage(conn net.Conn,message *Message)([]byte,error) {
 
 	var buf [1024]byte
 	n, err := conn.Read(buf[0:])   //如果客户端一次性写入超过buf长度的字符，没读完的话，再次读取会接着读
-	if err != nil {   //如果出错只更新状态，客户端选择是否重新连接或者选择删除连接？
+	if err != nil {   //如果出错，关闭连接
+        conn.Close()
 		connStat.status = "NOK"
+        delete(connMap,conn)   //从节点状态map里删除？
 		return buf[:0],err
 	}else{
 		conn.SetDeadline(time.Time{})
@@ -171,23 +177,50 @@ func CheckStatus(conn net.Conn) {
 }
 
 
-type NodeInfo struct{
-    Nodeaddr string   // 
-    Status   string   //OK NOK
-}
+//获取节点状态
+func getNodeStatus(w http.ResponseWriter, r *http.Request) {
 
-func getNodeList(w http.ResponseWriter, r *http.Request) {
-
-    nodeLists := make([]NodeInfo,0)
+    nodeStatus := make(map[string]string)
     
     for conn,ConnStat := range connMap{
-        nodeLists = append(nodeLists,NodeInfo{conn.RemoteAddr().String(),ConnStat.status})
+        nodeStatus[conn.RemoteAddr().String()] = ConnStat.status
     }
 
-    result,_ := json.Marshal(nodeLists)
-
+    result,_ := json.Marshal(nodeStatus)
     w.Write(result)
+}
 
+//获取节点配置
+func getNodeList(w http.ResponseWriter, r *http.Request) {
+
+    result,_ := json.Marshal(dataConfig.NodeList)
+    w.Write(result)
+}
+
+//保存节点配置
+func saveNodeList(w http.ResponseWriter, r *http.Request) {
+
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    fmt.Println(string(body))
+
+    var newNodeList []NodeConfig
+    //保存之前尝试解析，解析出错则返回错误，不保存
+    if err := json.Unmarshal(body,&newNodeList); err != nil{
+        w.WriteHeader(500)
+        w.Write([]byte(err.Error()))
+        return
+    }
+
+    dataConfig.NodeList = newNodeList
+    fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
+    if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
+        w.WriteHeader(500)
+        w.Write([]byte(err.Error()))
+        return
+    }
+
+    w.Write([]byte("OK"))
 }
 
 func ConnectNode(w http.ResponseWriter, r *http.Request) {
@@ -209,6 +242,25 @@ func ConnectNode(w http.ResponseWriter, r *http.Request) {
     connMap[conn] = &ConnStat{status:"OK", lock:sync.Mutex{} }
     go CheckStatus(conn)
 
+    w.Write([]byte("OK"))
+}
+
+//断开连接
+func removeConnect(w http.ResponseWriter, r *http.Request) {
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    fmt.Println(body)
+
+    removeAddr := string(body)
+
+    for conn,ConnStat := range connMap{
+        if removeAddr == conn.RemoteAddr().String() {
+            conn.Close()
+            ConnStat.status = "NOK"
+            delete(connMap,conn)   //从节点状态map里删除？
+        }
+    }
+    
     w.Write([]byte("OK"))
 }
 
@@ -363,6 +415,11 @@ type LoadHelper struct{
     TableList   []string
 }
 
+type NodeConfig struct{
+    NodeAddr    string
+    Config      map[string][]string
+}
+
 type DataConfig struct{
     GlobalVar   map[string]int
     ColumnMap   map[string][]string
@@ -370,6 +427,7 @@ type DataConfig struct{
     RandConfMap map[string][]string
     EnumlistMap map[string][]string
     Models      map[string]int   //模板对应的比重组成的map
+    NodeList    []NodeConfig
 }
 
 
