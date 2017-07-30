@@ -135,7 +135,7 @@ background-position: 0 -21px;
                   <button class="l-btn l-btn-small" v-on:click="newOutDir(nodeConfig)">
                       <span class="l-btn-left"><span class="l-btn-text">新增目录</span></span>
                   </button>
-                  <button class="l-btn l-btn-small"  v-on:click="newOutDir()">
+                  <button class="l-btn l-btn-small"  v-on:click="removeNode(index)">
                       <span class="l-btn-left"><span class="l-btn-text">删除节点</span></span>
                   </button>
                 </td>
@@ -189,29 +189,41 @@ vm = new Vue({
   methods:{
     NewConnect(){
       if (this.newAddr == "" || !/^\d+.\d+.\d+.\d+:\d+$/i.test(this.newAddr)) {
-
         $.messager.alert("错误", "地址为空或格式错误","error");
         return
       }
 
       connString = $.ajax({url:"/connect",async:false,type:"POST",dataType:"text",data:this.newAddr});
-      if  (connString.responseText == 'OK'){
-        //this.nodeList.push({NodeAddr:"192.168.2.34"})
+      if  (Response.status == "200"){
+        this.nodeList.push({NodeAddr:this.newAddr,Config:{}})
 
       } else {
         $.messager.alert("错误", connString.responseText,"error");
       }
+
+      this.newAddr = ""
     },
-    CloseConnect( Addr ){
-      $.messager.confirm('提示', '确定要关闭 '+ Addr + " 吗？", function(b){  
+    removeNode( index ){
+      nodes = this.nodeList
+      Addr = nodes[index].NodeAddr
+
+      removeDir = this.removeDir
+
+      var callBack = function(b){
         if (b){
-          alert('确定');
-           
+          alert('确定');  //待添加断开节点功能
+
+          for (dir in nodes[index].Config){
+            removeDir(nodes[index].Config,dir)
+          }
+          nodes.splice(index,1)  
         }else{
           alert('取消');
           return  
-        }  
-      }); 
+        }
+      }
+
+      $.messager.confirm('提示', '确定要关闭 '+ Addr + " 吗？", callBack); 
     },
     delTable(table,tableList){
       index = tableList.indexOf(table)
