@@ -78,6 +78,9 @@ func main(){
     http.HandleFunc("/getModelConfig", getModelConfig) 
     http.HandleFunc("/saveModelConfig", saveModelConfig)
 
+    http.HandleFunc("/getGlobalVar", getGlobalVar)
+    http.HandleFunc("/saveGlobalVar", saveGlobalVar)
+
     http.Handle("/", http.FileServer(http.Dir("EasyUI")))
     http.ListenAndServe(":8060", nil)
     
@@ -566,6 +569,37 @@ func saveModelConfig(w http.ResponseWriter, r *http.Request) {
     }
 
     dataConfig.Models = Models
+    fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
+    if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
+        w.WriteHeader(500)
+        w.Write([]byte(err.Error()))
+        return
+    }
+    w.Write([]byte("OK"))
+}
+
+//获取全局变量
+func getGlobalVar(w http.ResponseWriter, r *http.Request){
+
+    result,_ := json.Marshal(dataConfig.GlobalVar)
+    w.Write(result)
+}
+
+//保存全局变量
+func saveGlobalVar(w http.ResponseWriter, r *http.Request) {
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    fmt.Println(string(body))
+
+    var newGlobalVar =make(map[string]int)   //模板配置
+    //保存之前尝试解析，解析出错则返回错误，不保存
+    if err := json.Unmarshal(body,&newGlobalVar); err != nil{
+        w.WriteHeader(500)
+        w.Write([]byte(err.Error()))
+        return
+    }
+
+    dataConfig.GlobalVar = newGlobalVar
     fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
     if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
         w.WriteHeader(500)
