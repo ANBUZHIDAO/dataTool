@@ -94,7 +94,8 @@ background-position: 0 -21px;
         <thead>
             <tr >
               <th width="15%">节点名</th>
-              <th width="85%">数据配置(目录，表名，大小)</th>
+              <th width="65%">数据配置(目录，表名，大小)</th>
+              <th width="20%">操作</th>
             </tr>
         </thead>
         <tbody style="font-size:14px">
@@ -103,15 +104,17 @@ background-position: 0 -21px;
                   <span >{{nodeConfig.NodeAddr}}</span>
                 </td>
                 <td >
-                  <table border="0"  class="tableclass" style="width:100%">
+                  <table border="0"  class="tableclass" style="width:100%" >
                     <tbody >
                       <tr v-for="(tableList,outDir) in nodeConfig.Config">
                         <td width="25%"> 
-                          <span style="width:100%;padding-left: 2px"> {{ outDir }}</span>
+                          <span style="padding-left:2px" >{{ outDir }}</span>
+                            <a class="textbox-icon icon-remove" style="width: 22px; height: 22px;float:right" href="javascript:;" v-on:click="removeDir(nodeConfig.Config,outDir)"></a>
+
                         </td>
                         <td style="padding-left:2px" width="60%" >
                           <span class="tagbox-label" v-for="(table,index) in tableList">{{ table }}
-                            <a class="tagbox-remove" v-on:click="Del(table,tableList)"></a>
+                            <a class="tagbox-remove" v-on:click="delTable(table,tableList)"></a>
                           </span>
                         </td>
                         <td style="padding-left:4px" width="15%" >
@@ -119,7 +122,22 @@ background-position: 0 -21px;
                         </td>
                       </tr>
                     </tbody>
+                    <tfoot v-if="nodeConfig.newDir > 0">
+                      <tr>
+                        <td  style="width: 25%;border:0">
+                          <input class="textbox textbox-text validatebox-text" style="width: 150px;padding: 3px" type="text" v-on:change="addOutDir(nodeConfig,$event.target)"/>
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
+                </td>
+                <td style="padding-left:4px" >
+                  <button class="l-btn l-btn-small" v-on:click="newOutDir(nodeConfig)">
+                      <span class="l-btn-left"><span class="l-btn-text">新增目录</span></span>
+                  </button>
+                  <button class="l-btn l-btn-small"  v-on:click="newOutDir()">
+                      <span class="l-btn-left"><span class="l-btn-text">删除节点</span></span>
+                  </button>
                 </td>
             </tr>
         </tbody>
@@ -154,13 +172,18 @@ vm = new Vue({
           "/opt/out": ["emp24","inf_subscriber"],
           "/home/oracle/out": ["emp25","inf_dept"]
           }
+        },
+        {
+          NodeAddr:"192.168.1.112:4412",
+          "Config" :{
+          }
         }
       ],
     TableList:["inf_subs1","om_dispatch_order_his2","inf_cust3","inf_acct4","inf_cust5","inf_acct6","inf_cust7","inf_acct8","inf_cust9","inf_acct10","inf_cust11","inf_acct12","om_dispatch_order_his"],
     Selected:[],
     selectedNode:"",
     selectedConfig:{},
-    selectDir:""
+    selectDir:"",
   },
   watch: { selectedNode: 'getNodeConfig' },
   methods:{
@@ -190,11 +213,26 @@ vm = new Vue({
         }  
       }); 
     },
-    Del(table,tableList){
+    delTable(table,tableList){
       index = tableList.indexOf(table)
       tableList.splice(index,1)
 
       this.TableList.push(table)
+    },
+    newOutDir(nodeConfig){
+      Vue.set(nodeConfig , 'newDir', 1)
+    },
+    addOutDir(nodeConfig,input){
+      if(/^\S+$/.test(input.value)){
+        nodeConfig.Config[input.value] = new Array()
+        Vue.delete(nodeConfig , 'newDir')
+      }    
+    },
+    removeDir(Config,outDir){
+      for (var i=0;i<Config[outDir].length;i++){
+        this.TableList.push(Config[outDir][i])
+      }
+      Vue.delete(Config, outDir)  
     },
     getNodeConfig(){
       console.log(JSON.stringify(this.nodeList));
@@ -271,6 +309,13 @@ vm = new Vue({
         console.log(this.Selected)
       }
       
+    },
+    isEmptyObject(e) {
+      var t;
+      for (t in e){
+        return false;
+      }
+      return true
     }
   }
 });
