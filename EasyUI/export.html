@@ -32,7 +32,7 @@ textarea {
   <textarea v-model="input"></textarea>
   <div class="pull-left" style="padding: 4px" >
     <label style="text-align:center;font-size: 80%;border-radius:2px;margin-left: 5px;margin-right: 10px" >模板名称:</label>
-    <span class="textbox textbox-invalid easyui-fluid" style="width: 191px;" v-on:dblclick="ChangeEditable($event.currentTarget)">
+    <span class="textbox easyui-fluid" style="width: 191px;" v-on:dblclick="ChangeEditable($event.currentTarget)">
       <span v-if="!isEditable" class="textbox-text" style="width: 183px; height: 24px; line-height: 24px; padding-top: 0px; padding-bottom: 0px;" > {{ model }} </span>
       <input v-if="isEditable" type="text" class="textbox-text" style="width: 183px; height: 24px; line-height: 24px; padding-top: 0px; padding-bottom: 0px;"  v-model="model" v-on:blur="ChangeEditable"> 
       </input>
