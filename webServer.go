@@ -12,6 +12,12 @@ import (
 	"log"
     "net/http"
     "html/template"
+    "os/exec"
+    "strings"
+    "path/filepath"
+    "regexp"
+    "strconv"
+    "encoding/csv"
 )
 
 type Message struct{
@@ -57,7 +63,7 @@ func main(){
     http.HandleFunc("/connect", ConnectNode) 
     http.HandleFunc("/removeConnect", removeConnect)
     http.HandleFunc("/getNodeStatus", getNodeStatus) 
-    http.HandleFunc("/getNodeList", getNodeList) 
+    http.HandleFunc("/getNodeList", getNodeList)
     http.HandleFunc("/saveNodeList", saveNodeList) 
 
     http.HandleFunc("/getLoadConfig", getLoadConfig)
@@ -77,6 +83,7 @@ func main(){
     http.HandleFunc("/getSourceList", getSourceList)
     http.HandleFunc("/getModelConfig", getModelConfig) 
     http.HandleFunc("/saveModelConfig", saveModelConfig)
+    http.HandleFunc("/genModel", genModel)
 
     http.HandleFunc("/getGlobalVar", getGlobalVar)
     http.HandleFunc("/saveGlobalVar", saveGlobalVar)
@@ -104,6 +111,11 @@ func checkError(err error) {
 		fmt.Fprintf(os.Stderr, "Fatal error: %s", err.Error())
 		os.Exit(1)
 	}
+}
+
+func responseError(w http.ResponseWriter,err error) {
+    w.WriteHeader(500)
+    w.Write([]byte(err.Error()))
 }
 
 func sendMessage(conn net.Conn,message *Message)([]byte,error) {
@@ -176,7 +188,6 @@ func CheckStatus(conn net.Conn) {
 		time.Sleep(10* time.Second)
     }
     
-
 }
 
 
@@ -210,16 +221,14 @@ func saveNodeList(w http.ResponseWriter, r *http.Request) {
     var newNodeList []NodeConfig
     //保存之前尝试解析，解析出错则返回错误，不保存
     if err := json.Unmarshal(body,&newNodeList); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
 
     dataConfig.NodeList = newNodeList
     fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
     if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
 
@@ -234,8 +243,7 @@ func ConnectNode(w http.ResponseWriter, r *http.Request) {
     conn, err := net.DialTimeout("tcp",string(body),time.Second*10);
     if  err != nil {
        fmt.Println(err.Error())
-       w.WriteHeader(500)
-       w.Write([]byte(err.Error()))
+       responseError(w,err)
        return  
     }
     
@@ -282,16 +290,14 @@ func saveLoadConfig(w http.ResponseWriter, r *http.Request) {
     newLoadConfig := make([]LoadHelper,0)
     //保存之前尝试解析，解析出错则返回错误，不保存
     if err := json.Unmarshal(body,&newLoadConfig); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
 
     LoadConfig = newLoadConfig
     fileContent,_ := json.MarshalIndent(LoadConfig, ""," ")
     if err := saveConfig(fileContent,"testLoadConfig.json"); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
     w.Write([]byte("OK"))
@@ -314,16 +320,14 @@ func saveVardefine(w http.ResponseWriter, r *http.Request) {
     var newVarDefine = make(map[string][]string)   //变量配置
     //保存之前尝试解析，解析出错则返回错误，不保存
     if err := json.Unmarshal(body,&newVarDefine); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
 
     varDefine = newVarDefine
     fileContent,_ := json.MarshalIndent(varDefine, ""," ")
     if err := saveConfig(fileContent,"testVardefine.json"); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     } 
     w.Write([]byte("OK"))
@@ -351,16 +355,14 @@ func saveColumnMap(w http.ResponseWriter, r *http.Request) {
     var newColumnMap = make(map[string][]string)   //列名配置
     //保存之前尝试解析，解析出错则返回错误，不保存
     if err := json.Unmarshal(body,&newColumnMap); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
 
     dataConfig.ColumnMap = newColumnMap
     fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
     if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
     w.Write([]byte("OK"))
@@ -376,16 +378,14 @@ func saveRandConfMap(w http.ResponseWriter, r *http.Request) {
     var newRandConfMap = make(map[string][]string)   //列名配置
     //保存之前尝试解析，解析出错则返回错误，不保存
     if err := json.Unmarshal(body,&newRandConfMap); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
 
     dataConfig.RandConfMap = newRandConfMap
     fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
     if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
     w.Write([]byte("OK"))
@@ -477,8 +477,7 @@ func saveExportSQL(w http.ResponseWriter, r *http.Request) {
     exportsql = body
 
     if err := saveConfig(exportsql,"testExport.sql"); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
     w.Write([]byte("OK"))
@@ -492,20 +491,31 @@ func executeExportSQL(w http.ResponseWriter, r *http.Request) {
     executesql := make(map[string]string)
 
     if err := json.Unmarshal(body,&executesql); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
 
     fmt.Println(executesql)
+    //先重建目录，已有的情况下删除整个
+    if err := RebuildDir("source/" + executesql["modelname"]); err != nil{
+        responseError(w,err)
+        return
+    }
 
     //先执行创建替换directory的语句
-    //util.ExecSQLPlus("create or replace directory WORKSPACE as '"+ AbsPath + "';")
+    AbsPath,_ := filepath.Abs("source/" + executesql["modelname"] )
+    ExecSQLPlus("create or replace directory WORKSPACE as '"+ AbsPath + "';")
 
-    //content := util.ExecSQLPlus(SqlString)
-    //w.Write([]byte(content))
+    SqlBytes,_ := ioutil.ReadFile("exportSQL.sql")
+    SqlString := string(SqlBytes)
+    
+    SqlString = strings.NewReplacer("${ExportSQL}",executesql["sql"]).Replace(SqlString)
+    fmt.Println( SqlString )
 
-    w.Write([]byte("OK"))
+    result := ExecSQLPlus(SqlString)
+    fmt.Println( result )
+
+    w.Write([]byte(result))
 
 }
 
@@ -563,19 +573,152 @@ func saveModelConfig(w http.ResponseWriter, r *http.Request) {
     var Models =make(map[string]int)   //模板配置
     //保存之前尝试解析，解析出错则返回错误，不保存
     if err := json.Unmarshal(body,&Models); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
 
     dataConfig.Models = Models
     fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
     if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
     w.Write([]byte("OK"))
+}
+
+//生成模板
+func genModel(w http.ResponseWriter, r *http.Request) {
+    
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    sourcename := string(body)
+
+    var ValueMap = make(map[string]string)   //保存取到的关键值，打印出来，以便简单人工核对
+    var HeaderMap = make(map[string][]string)
+    var RecordsMap = make(map[string][][]string)   //保存文件内容
+
+    //解析source目录下源数据，取出关键根值，同时判断根值是否有对应的变量配置
+    fileInfos,err := ioutil.ReadDir("source/"+ sourcename)
+    if err != nil{
+        responseError(w,err)
+        return
+    }
+
+    var sourceFiles = make([]string,0)
+    for _,f := range fileInfos{
+        if( !f.IsDir() && strings.HasSuffix(f.Name(),".unl") ){
+            sourceFiles = append(sourceFiles,f.Name())
+        }
+    }
+    fmt.Println(sourceFiles)
+
+    for _,fname := range sourceFiles {
+        var path = "source/"+ sourcename + "/" + fname
+
+        tablename := strings.TrimSuffix(fname,".unl")
+        HeaderMap[tablename],RecordsMap[tablename],err = ParseCSV(path)
+        if err != nil{
+            responseError(w,err)
+            return
+        }
+
+        if RecordsMap[tablename] == nil{   //只有文件头，没有内容,从RecordsMap中删除
+            delete(RecordsMap,tablename)
+            continue
+        }
+
+        re, _ := regexp.Compile(`\d+$`)
+
+        for i,column := range HeaderMap[tablename]{
+            isConfigedColumn := false
+            for _,v := range dataConfig.ColumnMap[tablename]{
+                if v == column{
+                    isConfigedColumn = true
+                    break          
+                }
+            }
+
+            if !isConfigedColumn{
+                continue;   //不在列名配置表里，继续
+            }  
+                
+            varName := tablename+"."+ column
+            varConfig,varMatch := varDefine[varName];
+            _,randMatch := dataConfig.RandConfMap[varName];
+
+            if !varMatch && !randMatch{
+                //既在列名配置里，又没有对应的变量或随机配置
+                fmt.Println("ERROR: " + varName + " not found. Please check in vardefine.json or RandConfMap.")
+                responseError(w,errors.New("ERROR: " + varName + " not found. Please check in vardefine.json or RandConfMap."))
+            }
+
+            for j,record := range RecordsMap[tablename]{
+
+                if varMatch {
+                    varStr := varConfig[0]
+                    growth,_ := strconv.Atoi(varConfig[1])  //变量增长量
+
+                    //针对形如 SV2303 类的变量配置
+                    loc := re.FindStringIndex(varStr)
+                    varSeq,_ := strconv.Atoi(varStr[loc[0]:loc[1]]) // 2303
+                    varPrefix := varStr[:loc[0]]    //SV
+
+                    curVarName := varName + strconv.Itoa(j)  //当前变量名为类似empno1,empno2的形式
+                        
+                    if _,ok := varDefine[curVarName]; !ok {
+                        curVarStr := varPrefix + strconv.Itoa(varSeq+growth*j)
+                        fmt.Println(curVarName +" Grow Automatic: " + curVarStr)
+                        ValueMap[record[i]] = curVarStr +"${" + curVarName + "}"
+                    }else{    //如果主动配置了 empno2 等，则不需要根据来增长
+                        ValueMap[record[i]] = varDefine[curVarName][0] +"${" + curVarName + "}"
+                    } 
+                }
+
+                if randMatch {
+                    ValueMap[record[i]] = "${" + varName + "}"
+                } 
+            }
+ 
+        }
+    }
+
+
+    RebuildDir("model/" + sourcename)
+    
+    for tablename,records := range RecordsMap{   //对每个表进行处理
+        header := strings.Join(HeaderMap[tablename],",")
+        SourceStr,ModelStr := header,header
+        for _,record := range records{   //对表中的每行记录进行处理
+            SourceStr = SourceStr + "\n" + strings.Join(record,",")
+            for i,v := range record{   //处理每行中的各个字段值
+                if _,ok := ValueMap[v]; ok{   //值能在根值ValueMap里找到，则替换变量
+                    record[i]=ValueMap[v]
+                }
+                if(strings.ContainsAny(record[i],`,"`)){   //含有需要 转义的字符，标准CSV的转义格式是字段值包含(,)则用双引号括起来，包含(")也用双引号，同时"改为""
+                    record[i] = strings.Replace(record[i],`"`,`""`,-1)
+                    record[i] = `"` + record[i] + `"`
+                }
+            }
+            ModelStr = ModelStr + "\n" + strings.Join(record,",") 
+        }
+        SourceStr,ModelStr = SourceStr+"\n",ModelStr+"\n"
+
+        fmt.Println(SourceStr + "\n" + ModelStr)
+        //将模板字符串写入文件
+        tempfile,err := os.OpenFile("model/" + sourcename +"/"+ tablename+".unl",os.O_WRONLY|os.O_CREATE|os.O_TRUNC,0664)
+        defer tempfile.Close()
+        _,err = tempfile.WriteString(ModelStr)
+        if err != nil {   
+            responseError(w,err)
+            return
+        }
+    }
+
+    for i,v := range ValueMap{
+        if len(i) <= 4{
+            fmt.Println("WARN:Please check " + i + ":" + v +" manually,maybe it's Wrong.")
+        }
+    }
 }
 
 //获取全局变量
@@ -594,17 +737,88 @@ func saveGlobalVar(w http.ResponseWriter, r *http.Request) {
     var newGlobalVar =make(map[string]int)   //模板配置
     //保存之前尝试解析，解析出错则返回错误，不保存
     if err := json.Unmarshal(body,&newGlobalVar); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
 
     dataConfig.GlobalVar = newGlobalVar
     fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
     if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
-        w.WriteHeader(500)
-        w.Write([]byte(err.Error()))
+        responseError(w,err)
         return
     }
     w.Write([]byte("OK"))
+}
+
+
+
+/*
+    tools  
+*/
+
+//重建目录
+func RebuildDir(dir string)(error){
+    if err := os.RemoveAll(dir);err != nil{
+        return err
+    }
+    if err := os.Mkdir(dir,0774);err != nil{
+        return err
+    }
+    return nil
+}
+
+const Len = 8   //支持几位数字
+//转数字为字符，比Sprintf高效，且这样容易控制变量长度，可以调整const Len为9位. strconv中的库函数Itoa不足8位时前面无法补0，因此写了这个，数字超过8位时，前面高位被丢弃。
+func Itoa(number int)  []byte {
+    var a [Len]byte
+    for p := Len-1; p >= 0; number,p = (number/10),p-1 {
+        a[p] = byte((number % 10) + '0' )
+    }
+    return a[:]
+}
+
+//run SQLPlus as sysdba , return Standard Output
+func ExecSQLPlus(InputSQL string )( string){
+    cmd := exec.Command("sqlplus","/ as sysdba")
+    stdin, err := cmd.StdinPipe()
+    stdout,err := cmd.StdoutPipe()
+    if err != nil {
+        panic( err )
+    }
+
+    cmd.Start()
+
+    _, err = stdin.Write([]byte("set heading off feedback off pagesize 0 verify off echo off numwidth 24 linesize 2000\n"))
+    _, err = stdin.Write([]byte(InputSQL))
+    if err != nil {
+        panic( err )
+    }
+
+    stdin.Close()
+    content, err := ioutil.ReadAll(stdout)
+    if err != nil{
+        panic( err )
+    }
+    return string(content)
+}
+
+//将CSV文件解析为数组切片
+func ParseCSV(filepath string) ([]string , [][]string, error){
+    csvfile,_ := os.Open(filepath)
+    csvReader := csv.NewReader(csvfile)
+    records,err := csvReader.ReadAll()
+    if err != nil{
+        fmt.Println("ERROR:" + filepath + " was parsed failed,this file is wrong CSV format. ")
+        return nil, nil, err
+    }
+
+    if len(records) < 2 {
+        fmt.Printf("Empty records!\n")
+        return nil,nil,nil
+    }
+
+    header := records[0]
+    contents := records[1:]
+
+    return header,contents,nil
 }

@@ -166,8 +166,10 @@ new Vue({
       Response = $.ajax({url:"/genModel",async:false,type:"POST",dataType:"text",data:sourcename});
       console.log(JSON.stringify(Response))
       if  (Response.status == "200" ){
-        $.messager.alert("结果", "保存成功","info");
-        modelConfig[sourcename] = 1
+        $.messager.alert("结果", "生成模板成功。","info");
+        if(this.modelConfig[sourcename] == null){
+          Vue.set(this.modelConfig,sourcename,0)
+        }
       } else {
         $.messager.alert("错误", "genModel Exception:" + Response.responseText,"error");
       }   

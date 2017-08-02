@@ -66,10 +66,7 @@ END;
 
 begin
 
-value_map('deptno') :='10'; ---- value_map是为了适用于多个表都是用同一个值去查询记录时，只改这一处变量，export_table里会做替换
-
-export_table(' select * from scott.dept r where r.deptno = ''$deptno'' ');
-export_table(' select * from scott.emp r where r.deptno =''10'' ');
+    ${ExportSQL}
 
 end;
 /

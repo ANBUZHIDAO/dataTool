@@ -232,6 +232,40 @@ vm = new Vue({
       } else {
         $.messager.alert("错误", "getNodeStatus Exception：" + Response.responseText,"error");
       }
+
+      Response = $.ajax({url:"/getLoadConfig",async:false,type:"GET",dataType:"text"});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        var loadConfig = JSON.parse(Response.responseText)
+        console.log(JSON.stringify(loadConfig))
+
+        var allTableList = new Array()
+
+        for(var i=0; i< loadConfig.length;i++){
+          allTableList = allTableList.concat(loadConfig[i].TableList)
+        }
+
+        console.log(JSON.stringify(allTableList))
+      
+        for ( var i =0 ;i < this.nodeList.length; i++){
+          for(var dir in this.nodeList[i].Config){
+            var Selectedtables = this.nodeList[i].Config[dir]
+            for ( var j=0; j< Selectedtables.length; j++){
+              var index = allTableList.indexOf(Selectedtables[i])
+              if(index != -1){
+                allTableList.splice(index,1)
+              }
+            }
+          }
+        }
+
+        console.log(JSON.stringify(allTableList))
+        this.TableList = allTableList
+
+
+      } else {
+        $.messager.alert("错误", "getNodeStatus Exception：" + Response.responseText,"error");
+      }
   },
   watch: { selectedNode: 'getNodeConfig' },
   methods:{
