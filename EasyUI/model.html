@@ -54,8 +54,11 @@ font-family:Arial;
                       <button class="l-btn l-btn-small"  v-on:click="genModel(sourcename)">
                         <span class="l-btn-left l-btn-text ">生成模板</span>
                       </button>
-                      <button class="l-btn l-btn-small"  v-on:click="checkDetail(sourcename,1)">
+                      <button class="l-btn l-btn-small" v-on:click="checkDetail('source',sourcename)">
                         <span class="l-btn-left l-btn-text">查看</span>
+                      </button>
+                      <button class="l-btn l-btn-small"  v-on:click="deleteDir('source',sourcename)">
+                        <span class="l-btn-left l-btn-text">删除</span>
                       </button>
                     </td>
                   </tr>
@@ -73,10 +76,10 @@ font-family:Arial;
                       <input type="text" v-model="weight" v-on:change="changeWeight(modelname,$event.target)"></input>
                     </td>
                     <td style="padding-left:14px;width:60%" align="center">
-                      <button class="l-btn l-btn-small"  v-on:click="genModel(modelname)">
+                      <button class="l-btn l-btn-small"  v-on:click="deleteDir('model',modelname)">
                         <span class="l-btn-left l-btn-text">删除</span>
                       </button>
-                      <button class="l-btn l-btn-small"  v-on:click="checkDetail(modelname,2)">
+                      <button class="l-btn l-btn-small"  v-on:click="checkDetail('model',modelname)">
                         <span class="l-btn-left l-btn-text">查看</span>
                       </button>
                     </td>
@@ -174,11 +177,37 @@ new Vue({
         $.messager.alert("错误", "genModel Exception:" + Response.responseText,"error");
       }   
     },
-    checkDetail(sourcename,type){
-      console.log(sourcename)
+    deleteDir(dir,modelname){
+      console.log(dir + "/" + modelname)
+      dirpath = dir + "/" + modelname
 
-      this.isShowDetail=true
-         
+      Response = $.ajax({url:"/deleteDir",async:false,type:"POST",dataType:"text",data:dirpath});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        $.messager.alert("结果", "删除"+ dirpath +"成功。","info");
+        if(dir == "source"){
+          var index = this.sourceList.indexOf(modelname)
+          this.sourceList.splice(index,1)
+        }else {
+          Vue.delete(this.modelConfig,modelname)
+        }
+      } else {
+        $.messager.alert("错误", "deleteDir Exception:" + Response.responseText,"error");
+      }
+    },
+    checkDetail(dir,modelname){
+      console.log(dir + "/" + modelname)
+      dirpath = dir + "/" + modelname
+
+      Response = $.ajax({url:"/checkDetail",async:false,type:"POST",dataType:"text",data:dirpath});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        this.detail = Response.responseText
+        this.isShowDetail=true  
+      } else {
+        $.messager.alert("错误", "查看详情 出现异常:" + Response.responseText,"error");
+      }
+  
     }
   }
 })

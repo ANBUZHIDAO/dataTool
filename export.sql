@@ -1,2 +1,2 @@
-select * from scott.dept r where r.deptno = '6120192990';
-select * from scott.dept r where r.deptno = '10183000';
+select * from scott.dept r where r.deptno = '10';
+select * from scott.emp r where r.deptno = '10';

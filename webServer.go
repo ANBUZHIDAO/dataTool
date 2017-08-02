@@ -84,6 +84,8 @@ func main(){
     http.HandleFunc("/getModelConfig", getModelConfig) 
     http.HandleFunc("/saveModelConfig", saveModelConfig)
     http.HandleFunc("/genModel", genModel)
+    http.HandleFunc("/deleteDir", deleteDir)
+    http.HandleFunc("/checkDetail", checkDetail)
 
     http.HandleFunc("/getGlobalVar", getGlobalVar)
     http.HandleFunc("/saveGlobalVar", saveGlobalVar)
@@ -720,6 +722,59 @@ func genModel(w http.ResponseWriter, r *http.Request) {
         }
     }
 }
+
+//删除source或model下的源数据或模板数据
+func deleteDir(w http.ResponseWriter, r *http.Request) {
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    fmt.Println(string(body))
+
+    var dirpath = string(body) //目录路径
+    if err := os.RemoveAll(dirpath);err != nil{
+        responseError(w,err)
+        return
+    }
+    
+    w.Write([]byte("OK"))
+}
+
+//查看source下的源数据 或 查看 model目录下的模板数据
+func checkDetail(w http.ResponseWriter, r *http.Request) {
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    fmt.Println(string(body))
+
+    var dirpath = string(body) //目录路径
+    var detail = ""
+
+    err := filepath.Walk(dirpath,func(path string, f os.FileInfo, err error) error{
+            if f == nil{
+                return err
+            }
+            if f.IsDir() || !strings.HasSuffix(f.Name(),".unl"){
+                return nil
+            }
+
+            fmt.Println(path)
+            detail = detail + f.Name() + "\n"
+
+            body, err := ioutil.ReadFile(path)
+            if err != nil {
+                return err
+            }
+
+            detail = detail + string(body) + "\n"
+
+            return nil
+        })
+
+    if err != nil{
+        responseError(w,err)
+    }
+    
+    w.Write([]byte(detail))
+}
+
 
 //获取全局变量
 func getGlobalVar(w http.ResponseWriter, r *http.Request){
