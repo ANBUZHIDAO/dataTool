@@ -249,9 +249,9 @@ vm = new Vue({
       
         for ( var i =0 ;i < this.nodeList.length; i++){
           for(var dir in this.nodeList[i].Config){
-            var Selectedtables = this.nodeList[i].Config[dir]
-            for ( var j=0; j< Selectedtables.length; j++){
-              var index = allTableList.indexOf(Selectedtables[i])
+            var assignedTables = this.nodeList[i].Config[dir]
+            for ( var j=0; j< assignedTables.length; j++){
+              var index = allTableList.indexOf(assignedTables[j])
               if(index != -1){
                 allTableList.splice(index,1)
               }
@@ -372,7 +372,8 @@ vm = new Vue({
       response = $.ajax({url:"/saveNodeList",async:false,type:"POST",dataType:"text",data:JSON.stringify(this.nodeList)});
       if (response.status != "200" ){
         $.messager.alert("错误", "保存 nodeList Exception：" + response.responseText,"error");
-        return
+      }else{
+        $.messager.alert("结果", "保存成功","info");
       }
 
     },
