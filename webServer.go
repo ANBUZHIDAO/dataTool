@@ -18,6 +18,7 @@ import (
     "regexp"
     "strconv"
     "encoding/csv"
+    "math/rand"
 )
 
 type Message struct{
@@ -43,22 +44,6 @@ var logMap = make(map[string]*log.Logger)
 func main(){
 
     InitConfig()
-
-/*
-	var jsonStruct interface{}
-	jsonData,_ := ioutil.ReadFile("loadConfig.json")
-    if err := json.Unmarshal(jsonData,&jsonStruct); err != nil{
-        fmt.Println( err )  //后续需要修改这里，如果json格式不正确，则不能发往appNpde
-    }
-
-    message := &Message{Action:"buildData", Ext:"TestExt", Content:string(jsonData) }
-    sendMessage(conn, message)
-
-
-	message := &Message{Action:"syncConfig", Ext:"testSyncConfig.json", Content:string(jsonData) }
-    sendMessage(conn, message)
-*/
-	//time.Sleep(120* time.Second)
 
     http.HandleFunc("/connect", ConnectNode) 
     http.HandleFunc("/removeConnect", removeConnect)
@@ -89,6 +74,7 @@ func main(){
 
     http.HandleFunc("/getGlobalVar", getGlobalVar)
     http.HandleFunc("/saveGlobalVar", saveGlobalVar)
+    http.HandleFunc("/startBuild", startBuild)
 
     http.Handle("/", http.FileServer(http.Dir("EasyUI")))
     http.ListenAndServe(":8060", nil)
@@ -806,9 +792,161 @@ func saveGlobalVar(w http.ResponseWriter, r *http.Request) {
 }
 
 
+//开始构造
+func startBuild(w http.ResponseWriter, r *http.Request) {
+    fmt.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    fmt.Println(string(body))
+
+    //根据配置，根据权重模板切片序列 和 初始化随机串
+    ModelSlice := InitModels(dataConfig.Models,1000)
+    randStrMap,err := InitRand(dataConfig)
+    if err != nil{
+        responseError(w,err)
+        return
+    }
+
+    fmt.Println(ModelSlice)
+    fmt.Println(randStrMap)
+
+    
+    w.Write([]byte("OK"))
+}
+
+
+var rs = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+type RandStruct struct{
+    randslice []string
+    index int
+}
+
+//根据模板比重，初始化随机序列,n的数量不能太小，比如n=5,只取了5个随机数，是不能得到符合权重的随机序列的
+func InitModels(Models map[string]int, n int) ( ModelSlice []string){
+    var sum = 0
+
+    //range map的时候是随机的。所以另外声明两个Slice保证有序
+    var dSlice []string
+    var wSlice []int
+
+    for dir,Weight := range Models{
+        if _,err := os.Stat("model/"+ dir); err != nil {  //模板目录存在的才处理
+            delete(Models,dir)
+            continue
+        }
+        if(Weight <= 0){
+            delete(Models,dir)
+            continue
+        }
+        sum = sum + Weight
+
+        dSlice = append(dSlice,dir)
+        wSlice = append(wSlice,sum)          
+    }
+    
+    fmt.Println( Models )
+
+    //经过上面的处理后，比如初始的model:1,model1:2,model2:3 
+    //在dirSlice和wSlice中的值分别为model,model1,mode2 1 3 5
+    //下面产生1-5之间的随机数，遍历slice，小于当前slice，则认落在当前区间。
+
+    for i:=0;i<n;i++{
+        x := rs.Intn( sum )  //获取随机数，根据此随机数落到某个因子范围内，取这个因子的值
+        for i,dir := range dSlice{
+            if x < wSlice[i]{
+                ModelSlice = append(ModelSlice,dir)
+                break
+            }
+        }
+    }
+
+    return ModelSlice
+}
+
+
+func (r *RandStruct) GetNext()(string){
+    r.index++
+    if(r.index >= len(r.randslice)){
+        r.index = 0
+    }
+    return r.randslice[r.index]
+}
+
+//randConfig:初始化多少（比如常见姓名是500个，初始化500个姓名，所有姓名字符串从这500个里面取），最小长度，最大长度，模式(0:小写字母,1:大写字母,2:数字,3:字母+数字,4:大小写字母,5:汉字,6:大写开头的字母)
+func InitRand(dataConfig *DataConfig) (map[string]*RandStruct,error){
+    randConfig := dataConfig.RandConfMap
+    EnumMap := dataConfig.EnumlistMap
+
+    fmt.Println(randConfig)
+
+    var randValueMap = make(map[string]*RandStruct)
+
+    for name,config := range randConfig{
+        initsize,_ := strconv.Atoi(config[0])
+        randValueMap[name]= &RandStruct{make([]string,initsize,initsize),-1};
+        if len(config) == 4 {
+            for i:=0;i< initsize; i++{
+                randValueMap[name].randslice[i] = RandString(config[1],config[2],config[3]) 
+            }
+        }else if len(config) == 2{
+            for i:=0;i< initsize; i++{
+                Enumlist,ok := EnumMap[config[1]]
+                if !ok{
+                    return nil, errors.New("枚举值列表" + config[1] + "未配置枚举值");
+                }
+
+                randValueMap[name].randslice[i] = Enumlist[rs.Intn( len(Enumlist) )] 
+            }
+        }
+    }
+
+    return randValueMap,nil
+}
+
+//由于是采用的字符串相加的方式，效率不高，此工具采用的是事先初始化好一个不太长的随机串数组，需要用时从数组里循环取
+func RandString(min string,max string, mod string) string{
+
+    lowers := "abcdefghijklmnopqrstuvwxyz"
+    uppers := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    digits := "0123456789"
+    alnums := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    alphas := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    chinese := "的一是在不了有和人这中大为上个国我以要他时来用们生到作地于出就分对成会可主发年动同工也能下过子说产种面而方后多定行学法所民得经十三之进着等部度家电力里如水化高自二理起小物现实加量都两体制机当使点从业本去把性好应开它合还因由其些然前外天政四日那社义事平形相全表间样与关各重新线内数正心反你明看原又么利比或但质气第向道命此变条只没结解问意建月公无系军很情者最立代想已通并提直题党程展五果料象员革位入常文总次品式活设及管特件长求老头基资边流路级少图山统接知较将组见计别她手角期根论运农指几九区强放决西被干做必战先回则任取据处队南给色光门即保治北造百规热领七海口东导器压志世金增争济阶油思术极交受联什认六共权收证改清己美再采转更单风切打白教速花带安场身车例真务具万每目至达走积示议声报斗完类八离华名确才科张信马节话米整空元况今集温传土许步群广石记需段研界拉林律叫且究观越织装影算低持音众书布复容儿须际商非验连断深难近矿千周委素技备半办青省列习响约支般史感劳便团往酸历市克何除消构府称太准精值号率族维划选标写存候毛亲快效斯院查江型眼王按格养易置派层片始却专状育厂京识适属圆包火住调满县局照参红细引听该铁价严龙飞"
+
+    dicts := map[string]string{"lowers":lowers,"uppers":uppers,"digits":digits,"alnums":alnums,"alphas":alphas,"chinese":chinese}
+
+    min_size,_ := strconv.Atoi(min)
+    max_size,_ := strconv.Atoi(max)
+
+    result,n := "",min_size 
+    if max_size > min_size {
+        n = rs.Intn(max_size-min_size+1)+ min_size
+    }
+
+    switch {
+    case mod == "lowers" || mod =="uppers" || mod =="digits" || mod =="alnums" || mod =="alphas":
+        length := len(dicts[mod])
+        for i:=0; i<n; i++{
+            result = result + string(dicts[mod][rs.Intn(length)])
+        }
+    case mod == "chinese":
+        length := len(chinese)
+        for i:=0; i<n; i++{
+            x := rs.Intn(length/3)   
+            result = result + chinese[x*3:x*3+3]    //汉字在utf-8里是占用3个byte的
+        }
+    default :                                     //默认是首字母大写，后面字母小写的方式
+        result = string(uppers[rs.Intn(26)])
+        for i:=1; i<n; i++{
+            result = result + string(lowers[rs.Intn(26)])
+        }
+    }
+
+    return result
+}
 
 /*
-    tools  
+    tools 工具类 
 */
 
 //重建目录
@@ -820,16 +958,6 @@ func RebuildDir(dir string)(error){
         return err
     }
     return nil
-}
-
-const Len = 8   //支持几位数字
-//转数字为字符，比Sprintf高效，且这样容易控制变量长度，可以调整const Len为9位. strconv中的库函数Itoa不足8位时前面无法补0，因此写了这个，数字超过8位时，前面高位被丢弃。
-func Itoa(number int)  []byte {
-    var a [Len]byte
-    for p := Len-1; p >= 0; number,p = (number/10),p-1 {
-        a[p] = byte((number % 10) + '0' )
-    }
-    return a[:]
 }
 
 //run SQLPlus as sysdba , return Standard Output
@@ -877,3 +1005,6 @@ func ParseCSV(filepath string) ([]string , [][]string, error){
 
     return header,contents,nil
 }
+
+
+

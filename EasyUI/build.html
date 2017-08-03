@@ -143,8 +143,14 @@ vm = new Vue({
       }
     },
     startBuildJob(){
-      console.log(JSON.stringify(this.GlobalVar))
-      console.log("Begin Build Data")
+      Response = $.ajax({url:"/startBuild",async:false,type:"POST",dataType:"text",data:this.isRebuildIndex });
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        $.messager.alert("结果", "成功启动构造任务","info");
+      } else {
+        $.messager.alert("错误", "启动构造任务异常:" + Response.responseText,"error");
+      }
+
     }
   }
 

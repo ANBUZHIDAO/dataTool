@@ -292,7 +292,7 @@ vm = new Vue({
       response = $.ajax({url:"/connect",async:false,type:"POST",dataType:"text",data:nodeConfig.NodeAddr});
       console.log(JSON.stringify(response))
       if  (response.status == "200"){
-        this.NodeStatus[nodeConfig.NodeAddr] = "OK"
+        Vue.set(this.NodeStatus,nodeConfig.NodeAddr,"OK")
       } else {
         $.messager.alert("错误", response.responseText,"error");
       }
