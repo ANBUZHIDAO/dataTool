@@ -94,21 +94,13 @@ func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
     t.Execute(w, nil)
 }
 
-func checkError(err error) {
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Fatal error: %s", err.Error())
-		os.Exit(1)
-	}
-}
-
 func responseError(w http.ResponseWriter,err error) {
     w.WriteHeader(500)
     w.Write([]byte(err.Error()))
 }
 
 func sendMessage(conn net.Conn,message *Message)([]byte,error) {
-	send, err := json.Marshal(message)
-    checkError(err)
+	send, _ := json.Marshal(message)
     fmt.Println(string(send))
 
     connStat,ok := connMap[conn]
@@ -126,9 +118,13 @@ func sendMessage(conn net.Conn,message *Message)([]byte,error) {
     defer connStat.lock.Unlock()
 
 	_,err = conn.Write(send);
-	checkError(err)
+	if err != nil {   //如果出错，关闭连接
+        conn.Close()
+        connStat.status = "NOK"
+        delete(connMap,conn)   //从节点状态map里删除？
+        return nil,err
+    }
 
-	fmt.Println("Begin Read Response")
 	conn.SetDeadline(time.Now().Add(time.Duration(5 * time.Second)))
 
 	var buf [1024]byte
@@ -137,7 +133,7 @@ func sendMessage(conn net.Conn,message *Message)([]byte,error) {
         conn.Close()
 		connStat.status = "NOK"
         delete(connMap,conn)   //从节点状态map里删除？
-		return buf[:0],err
+		return nil,err
 	}else{
 		conn.SetDeadline(time.Time{})
 		return buf[:n],nil
@@ -177,7 +173,6 @@ func CheckStatus(conn net.Conn) {
     }
     
 }
-
 
 //获取节点状态
 func getNodeStatus(w http.ResponseWriter, r *http.Request) {
@@ -806,9 +801,29 @@ func startBuild(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    fmt.Println(ModelSlice)
-    fmt.Println(randStrMap)
+    err = syncConfig(ModelSlice,"ModelSlice")
+    if err != nil{
+        responseError(w,err)
+        return
+    }
 
+    err = syncConfig(randStrMap,"randStrMap")
+    if err != nil{
+        responseError(w,err)
+        return
+    }
+
+    err = syncConfig(dataConfig,"dataConfig")
+    if err != nil{
+        responseError(w,err)
+        return
+    }
+
+    err = syncConfig(LoadConfig,"LoadConfig")
+    if err != nil{
+        responseError(w,err)
+        return
+    }
     
     w.Write([]byte("OK"))
 }
@@ -817,8 +832,8 @@ func startBuild(w http.ResponseWriter, r *http.Request) {
 var rs = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 type RandStruct struct{
-    randslice []string
-    index int
+    Randslice []string
+    Index int
 }
 
 //根据模板比重，初始化随机序列,n的数量不能太小，比如n=5,只取了5个随机数，是不能得到符合权重的随机序列的
@@ -863,21 +878,10 @@ func InitModels(Models map[string]int, n int) ( ModelSlice []string){
     return ModelSlice
 }
 
-
-func (r *RandStruct) GetNext()(string){
-    r.index++
-    if(r.index >= len(r.randslice)){
-        r.index = 0
-    }
-    return r.randslice[r.index]
-}
-
 //randConfig:初始化多少（比如常见姓名是500个，初始化500个姓名，所有姓名字符串从这500个里面取），最小长度，最大长度，模式(0:小写字母,1:大写字母,2:数字,3:字母+数字,4:大小写字母,5:汉字,6:大写开头的字母)
 func InitRand(dataConfig *DataConfig) (map[string]*RandStruct,error){
     randConfig := dataConfig.RandConfMap
     EnumMap := dataConfig.EnumlistMap
-
-    fmt.Println(randConfig)
 
     var randValueMap = make(map[string]*RandStruct)
 
@@ -886,7 +890,7 @@ func InitRand(dataConfig *DataConfig) (map[string]*RandStruct,error){
         randValueMap[name]= &RandStruct{make([]string,initsize,initsize),-1};
         if len(config) == 4 {
             for i:=0;i< initsize; i++{
-                randValueMap[name].randslice[i] = RandString(config[1],config[2],config[3]) 
+                randValueMap[name].Randslice[i] = RandString(config[1],config[2],config[3]) 
             }
         }else if len(config) == 2{
             for i:=0;i< initsize; i++{
@@ -895,7 +899,7 @@ func InitRand(dataConfig *DataConfig) (map[string]*RandStruct,error){
                     return nil, errors.New("枚举值列表" + config[1] + "未配置枚举值");
                 }
 
-                randValueMap[name].randslice[i] = Enumlist[rs.Intn( len(Enumlist) )] 
+                randValueMap[name].Randslice[i] = Enumlist[rs.Intn( len(Enumlist) )] 
             }
         }
     }
@@ -943,6 +947,25 @@ func RandString(min string,max string, mod string) string{
     }
 
     return result
+}
+
+//同步配置到App应用节点
+func syncConfig(v interface{}, configname string)(error){
+    jsonData,_ := json.MarshalIndent(v, ""," ")
+
+    message := &Message{Action:"syncConfig", Ext:configname, Content:string(jsonData) }
+
+    for conn,ConnStat := range connMap{
+        if ConnStat.status !="OK"{
+            return errors.New(conn.RemoteAddr().String() + " status not OK, con't syncConfig.")
+        }
+        _,err := sendMessage(conn, message)
+        if err != nil{
+            return err
+        }
+    }
+    
+    return nil
 }
 
 /*

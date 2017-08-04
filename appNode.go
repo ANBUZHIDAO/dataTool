@@ -33,6 +33,48 @@ var appStatus = 0
 var logBuf bytes.Buffer
 var fileLogger,bufLogger *log.Logger
 
+var ModelSlice []string
+var randStrMap map[string]*RandStruct
+
+type RandStruct struct{
+    Randslice []string
+    Index int
+}
+
+func (r *RandStruct) GetNext()(string){
+    r.Index++
+    if(r.Index >= len(r.Randslice)){
+        r.Index = 0
+    }
+    return r.Randslice[r.Index]
+}
+
+var LoadConfig []LoadHelper
+var dataConfig *DataConfig
+
+type LoadHelper struct{
+    Username    string
+    Password    string
+    TableList   []string
+}
+
+type NodeConfig struct{
+    NodeAddr    string
+    Config      map[string][]string
+}
+
+type DataConfig struct{
+    GlobalVar   map[string]int
+    ColumnMap   map[string][]string
+    ExcludeMap  map[string]bool  //使用map判断是否包含在这里面
+    RandConfMap map[string][]string
+    EnumlistMap map[string][]string
+    Models      map[string]int   //模板对应的比重组成的map
+    NodeList    []NodeConfig
+}
+
+
+
 func main(){
 
 	tcpaddr, err := net.ResolveTCPAddr("tcp4","192.168.1.110:4412")
@@ -66,14 +108,14 @@ func main(){
 //Socket也是我乐意，采用http或rpc等估计更简单，但是我在学习Socket，我乐意，不爽来打我啊
 //处理TCP长连接要深刻认识到一点，TCP是一个没有记录边界的字节流协议。小心粘包或缓冲区过小，一次性读不完。
 //这里有个问题，管理节点直接CRTL+C之类的，这里将会长期处于CLOSE_WAIT状态，小应用虽然可以不管。。
-//解决方法是 conn.Read不弄成阻塞式的，60s超时，然后超时后主动发送个检查状态的，发送不到，则主动断开连接。
+//这里的解决方法是管理节点 conn.Read不弄成阻塞式的，5s超时，然后超时后主动发送个检查状态的，发送不到，则主动断开连接。
 func HanldeConnect(conn net.Conn) {
 	fmt.Println("Accepted") 
 		
-	var buf [1024]byte
+	var buf [102400]byte
 
 	for {
-		n, err := conn.Read(buf[0:])   //如果客户端一次性写入超过512个字符，也只能读取512个.
+		n, err := conn.Read(buf[0:])   //如果客户端一次性写入超过102400个字符，也只能读取102400个.
 		if err != nil {
 			return
 		}else{
@@ -81,7 +123,9 @@ func HanldeConnect(conn net.Conn) {
 			receive := new(Message)
 
     		if err := json.Unmarshal(buf[:n],&receive); err != nil{
-        		fmt.Println(err)
+        		response := &Response{Result:"NOK", Ext:"UnmarshalMessage", Content: err.Error()}
+        		respond(conn,response) 
+    			continue
     		}
 
     		if receive.Action == "buildData"{   // buildData Content传表名
@@ -98,12 +142,7 @@ func HanldeConnect(conn net.Conn) {
     			fmt.Println(receive.Content)
     			fmt.Println(receive.Ext)
 
-    			filename := receive.Ext
-    			//修改参数，有配置，有全局变量
-    			configFile,err := os.OpenFile( filename,os.O_RDWR|os.O_CREATE|os.O_TRUNC,0664)
-
-				_,err = configFile.WriteString( receive.Content )
-				configFile.Close()
+    			err := receiveConfig(receive.Ext,receive.Content)
 
 				response := &Response{Result:"OK", Ext:"syncConfig", Content: "syncConfig Success"}
 				if err != nil{
@@ -148,5 +187,24 @@ func respond(conn net.Conn, response *Response) {
     }
 }
 
+
+//保存配置数据
+func receiveConfig(Ext string, Content string) (error) {
+	switch Ext{
+	case "ModelSlice":
+    	err := json.Unmarshal([]byte(Content),&ModelSlice)
+        return err
+    case "randStrMap":
+    	err := json.Unmarshal([]byte(Content),&randStrMap)
+        return err
+    case "dataConfig":
+    	err := json.Unmarshal([]byte(Content),&dataConfig)
+        return err
+    case "LoadConfig":
+    	err := json.Unmarshal([]byte(Content),&LoadConfig); 
+        return err
+        default: return nil
+	}
+}
 
 
