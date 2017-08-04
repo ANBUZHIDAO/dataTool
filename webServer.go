@@ -101,7 +101,6 @@ func responseError(w http.ResponseWriter,err error) {
 
 func sendMessage(conn net.Conn,message *Message)([]byte,error) {
 	send, _ := json.Marshal(message)
-    fmt.Println(string(send))
 
     connStat,ok := connMap[conn]
     if !ok{
@@ -117,7 +116,7 @@ func sendMessage(conn net.Conn,message *Message)([]byte,error) {
     connStat.lock.Lock()
     defer connStat.lock.Unlock()
 
-	_,err = conn.Write(send);
+	_,err := conn.Write(send);
 	if err != nil {   //如果出错，关闭连接
         conn.Close()
         connStat.status = "NOK"
@@ -166,7 +165,6 @@ func CheckStatus(conn net.Conn) {
     		break;
     	}else {
     		logMap[filename].Println( string(response) )
-    		fmt.Println(string(response))
     	}
 
 		time.Sleep(10* time.Second)
@@ -824,6 +822,40 @@ func startBuild(w http.ResponseWriter, r *http.Request) {
         responseError(w,err)
         return
     }
+
+    for modeldir,_ := range dataConfig.Models{
+        err := ParseDir(modeldir)     //解析模板
+        if err != nil {
+            responseError(w,err)
+            return
+        }
+    }
+
+    err = syncConfig(models,"models")
+    if err != nil{
+        responseError(w,err)
+        return
+    }
+
+    err = syncConfig(maxTemp,"maxTemp")
+    if err != nil{
+        responseError(w,err)
+        return
+    }
+
+    message := &Message{Action:"startTask", Ext:"startTask", Content:"startTask" }
+
+    for conn,ConnStat := range connMap{
+        if ConnStat.status !="OK"{
+            responseError(w, errors.New(conn.RemoteAddr().String() + " status invalid."))
+            return
+        }
+        _,err := sendMessage(conn, message)
+        if err != nil{
+            responseError(w,err)
+            return
+        }
+    }
     
     w.Write([]byte("OK"))
 }
@@ -967,6 +999,88 @@ func syncConfig(v interface{}, configname string)(error){
     
     return nil
 }
+
+type MyTemplate struct{
+    Header string
+    Content string
+    Strslice []string
+    Repslice []int      //使用什么替换方式，0为原始，不替换，1为替换变量，2为随机字符串
+    Length int          //使用变量替换后的模板长度，用于控制判断是否需要将Bufferstruct压入WriteCh，以写入磁盘。
+                        // Length并不能准确计算出模板会有多长，因为有随机字符串以及枚举值的方式
+}
+
+var models = make(map[string] (map[string]*MyTemplate))
+var maxTemp = make(map[string][2]string)    //用到的模板
+
+func ParseDir(dirname string)(error){
+    var templates = make(map[string]*MyTemplate)
+
+    err := filepath.Walk("model/"+dirname,func(path string, f os.FileInfo, err error) error{
+            if f == nil{
+                return err
+            }
+            if f.IsDir() || !strings.HasSuffix(f.Name(),".unl") {
+                return nil
+            }
+
+            fmt.Println(path )
+
+            filename := strings.TrimSuffix(f.Name(),".unl")
+            //解析文件，读取到字符串里去,然后解析为模板
+            data,_ := ioutil.ReadFile(path)
+            templates[filename] = parseTemplate(string(data))
+
+            if len(templates[filename].Content) > len(maxTemp[filename][1]){
+                maxTemp[filename] = [2]string{templates[filename].Header,templates[filename].Content}
+            } 
+
+            return nil
+        })
+
+    models[dirname] = templates 
+
+    return err      
+}
+
+func parseTemplate(tempStr string)(*MyTemplate){
+    var result = new(MyTemplate)
+
+    Header := tempStr[:strings.Index(tempStr, "\n")]
+    result.Header = strings.TrimSuffix(Header,",")
+    result.Content = tempStr[strings.Index(tempStr, "\n")+1:]
+    result.Length = 0
+
+    strArray := strings.Split(result.Content,"${")
+    for _,v := range strArray{
+        if(!strings.Contains(v,"}")){
+            result.Strslice = append(result.Strslice,v)
+            result.Repslice = append(result.Repslice,0)
+            result.Length = result.Length + len(v)
+        } else {
+            varName,repMethod := v[:strings.Index(v,"}")],1
+
+            if _,ok := dataConfig.RandConfMap[varName];ok{
+                repMethod=2
+            }
+
+            result.Strslice = append(result.Strslice,varName)
+            result.Repslice = append(result.Repslice,repMethod)
+            result.Length = result.Length + 8
+
+            result.Strslice = append(result.Strslice,v[strings.Index(v,"}")+1:])
+            result.Repslice = append(result.Repslice,0)
+            result.Length = result.Length + len(v[strings.Index(v,"}")+1:])
+        }
+    }
+
+    fmt.Printf("strSlice =%v\n",result.Strslice)
+    fmt.Printf("repSlice =%v\n",result.Repslice)
+    result.Length = result.Length + 200   // 由于Length并不能准确计算出模板会有多长，因此将计算出的值增加200，以避免出错。如果出现那种造200以上的随机字符串活枚举字符串之类的，我也只能无语了，改大这个值吧。
+    fmt.Println("MyTemplate Length: " + strconv.Itoa(result.Length))
+
+    return result
+}
+
 
 /*
     tools 工具类 
