@@ -13,6 +13,7 @@ import (
     "path/filepath"
     "math/rand"
     "strings"
+    "io"
 )
 
 type Message struct{
@@ -36,8 +37,8 @@ var appStatus = 0
 //收到关闭连接的请求后，状态改为0，继续监听，可以再次处理连接
 //收到关闭系统的请求后，关闭应用。
 
-var logBuf bytes.Buffer
-var fileLogger,bufLogger *log.Logger
+var logBuf = bytes.NewBufferString("")
+var LOG *log.Logger
 
 var SliceCap = 1024*1024*50   //Slice大小，管道里的元素的Slice的容量长度cap，当剩余的长度小于30000时，写入WriteCh，由写入线程写入文件。不宜太大。
 var RebuildIndexFlag = true      //导入完成后是否自动重建索引，默认为true，如果确实需要执行几次导入，则可以前几次设置为false。
@@ -112,21 +113,24 @@ type MyTemplate struct{
 func main(){
 
 	tcpaddr, err := net.ResolveTCPAddr("tcp4",ListenAddr)
-	checkError(err)
-	fmt.Println(tcpaddr)
+	if  err != nil{
+        panic(err)
+    }
 
-	listener, err := net.ListenTCP("tcp",tcpaddr)
-	checkError(err)
+    listener, err := net.ListenTCP("tcp",tcpaddr)
+	if  err != nil{
+        panic(err)
+    }
 
 	//设置本地文件日志以及缓冲区日志(缓冲区日志为了传输给管理节点)
-	logFile,err  := os.OpenFile(time.Now().Format("20060102150405")+".log",os.O_WRONLY|os.O_CREATE|os.O_TRUNC,0664)
+	logFile,err  := os.OpenFile("log/appNode" + time.Now().Format("20060102150405")+".log",os.O_WRONLY|os.O_CREATE|os.O_TRUNC,0664)
     defer logFile.Close()
     if err != nil {
-        log.Fatalln("open file error !")
+        panic(err)
     }
-	fileLogger = log.New(logFile,"appNode:",log.Lshortfile | log.Ldate | log.Ltime)
-	bufLogger = log.New(&logBuf, "appNode: ", log.Lshortfile | log.Ldate | log.Ltime)
+    LOG = log.New(io.MultiWriter(logFile,logBuf),"appNode:",log.Lshortfile | log.Ldate | log.Ltime)
 
+    fmt.Println("appNode will Listen:" + ListenAddr)
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -144,7 +148,7 @@ func main(){
 //这里有个问题，管理节点直接CRTL+C之类的，这里将会长期处于CLOSE_WAIT状态，小应用虽然可以不管。。
 //这里的解决方法是管理节点 conn.Read不弄成阻塞式的，5s超时，然后超时后主动发送个检查状态的，发送不到，则主动断开连接。
 func HanldeConnect(conn net.Conn) {
-	fmt.Println("Accepted") 
+	LOG.Println("Accepted") 
 		
 	var buf [5242880]byte
 
@@ -153,7 +157,7 @@ func HanldeConnect(conn net.Conn) {
 		if err != nil {
 			return
 		}else{
-			fmt.Println(string(buf[:n]))
+			LOG.Println(string(buf[:n]))
 			receive := new(Message)
 
     		if err := json.Unmarshal(buf[:n],&receive); err != nil{
@@ -163,7 +167,7 @@ func HanldeConnect(conn net.Conn) {
     		}
 
     		if receive.Action == "startTask"{   // buildData Content传表名
-    			fmt.Println("Go to startTask.")
+    			LOG.Println("Go to startTask.")
     			//先进行一系列校验，通过之后才真正起协程造数据，然后通知管理节点
     			go StartTask()
 
@@ -173,8 +177,8 @@ func HanldeConnect(conn net.Conn) {
     		}
 
     		if receive.Action == "syncConfig"{   // 
-    			fmt.Println(receive.Content)
-    			fmt.Println(receive.Ext)
+    			LOG.Println(receive.Content)
+    			LOG.Println(receive.Ext)
 
     			err := receiveConfig(receive.Ext,receive.Content)
 
@@ -187,7 +191,7 @@ func HanldeConnect(conn net.Conn) {
     			continue
     		}
 
-    		//fmt.Println("Content:" + receive.Content)
+    		//LOG.Println("Content:" + receive.Content)
     		if logBuf.Len() > 0 {
     			response := &Response{Result:"OK", Ext:"log", Content: logBuf.String()}
     			respond(conn,response) 
@@ -204,19 +208,17 @@ func HanldeConnect(conn net.Conn) {
 
 func checkError(err error) {
 	if err != nil {
-		fileLogger.Println(err.Error())
-		log.Fatalln( err.Error() )
+		LOG.Println( err.Error() )
 	}
 }
 
 func respond(conn net.Conn, response *Response) {
 	reply, _ := json.Marshal(response)
 
-    //fmt.Println(string(reply))
-    //fileLogger.Println(string(reply))
+    LOG.Println(string(reply))
 
     if _,err := conn.Write(reply); err != nil{
-    	fileLogger.Println(err.Error()) //记录错误信息，并关闭连接
+    	LOG.Println(err.Error()) //记录错误信息，并关闭连接
     	conn.Close()
     }
 }
@@ -356,24 +358,24 @@ func bufferToFile(ThreadCount int) {
             filemap[filename] = temp
             defer filemap[filename].Close()
             if err != nil {   
-                fmt.Println(err.Error())
+                LOG.Println(err.Error())
             }
         }
 
         _,err := filemap[filename].Write( Chanvalue.buf )
         Chanvalue.buf = Chanvalue.buf[0:0]
         if err != nil {   
-            fmt.Println(err.Error())
+            LOG.Println(err.Error())
         }
 
         buildCh <- Chanvalue          
     }
 
-    fmt.Println("WriteFile Thread Exit.")
+    LOG.Println("WriteFile Thread Exit.")
 }
 
 func buildBytes( dirname string,tablelist []string, from int,to int) {
-    fmt.Println("from :" + string(Itoa(from)) +" to:" + string(Itoa(to)) )
+    LOG.Println("from :" + string(Itoa(from)) +" to:" + string(Itoa(to)) )
     var indexM = 0    //模板索引
 
     tempStruct := <-buildCh 
@@ -476,17 +478,17 @@ func LoadData() {
             for {
                 LoaderCommand,OK := <-loadCh        //获取Load管道里的命令
                 if !OK{           //如果没有了，表示已经完了，退出Load
-                    fmt.Println("LoadData Goroutine " + strconv.Itoa(n) + " End." )
+                    LOG.Println("LoadData Goroutine " + strconv.Itoa(n) + " End." )
                     LoadComplete <- 1  
                     break;
                 }
 
-                fmt.Println("LoadData Goroutine " + strconv.Itoa(n) + " execute: " + LoaderCommand)
+                LOG.Println("LoadData Goroutine " + strconv.Itoa(n) + " execute: " + LoaderCommand)
 
                 cmd := exec.Command("sqlldr",LoaderCommand)
                 cmd.Stdout = logfile
                 if err := cmd.Run(); err != nil{
-                    fmt.Println(err)
+                    LOG.Println(err)
                 }
             }            
  
@@ -505,7 +507,7 @@ func LoadData() {
             header := maxTemp[table][0]
 
             infile := filepath.Join("out", table+".out")
-            fmt.Println(infile)
+            LOG.Println(infile)
             if _,err := os.Stat(infile); err != nil {
                 continue
             }

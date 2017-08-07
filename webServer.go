@@ -11,7 +11,6 @@ import (
 	"sync"
 	"log"
     "net/http"
-    "html/template"
     "os/exec"
     "strings"
     "path/filepath"
@@ -41,7 +40,16 @@ type ConnStat struct{
 var connMap = make(map[net.Conn] *ConnStat)
 var logMap = make(map[string]*log.Logger)
 
+var LOG *log.Logger
+
 func main(){
+
+    //设置日志打印
+    logFile,err  := os.OpenFile("log/manServer"+ time.Now().Format("20060102150405")+".log",os.O_WRONLY|os.O_CREATE|os.O_TRUNC,0664)
+    if err != nil {
+        panic(err)
+    }
+    LOG = log.New(logFile,"ManServer:",log.Lshortfile | log.Ldate | log.Ltime)
 
     InitConfig()
 
@@ -77,21 +85,10 @@ func main(){
     http.HandleFunc("/startBuild", startBuild)
 
     http.Handle("/", http.FileServer(http.Dir("EasyUI")))
+
+    fmt.Println("Server will start and Listen at 8060")
     http.ListenAndServe(":8060", nil)
-    
-    http.HandleFunc("/",NotFoundHandler)
-}
-
-func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
-    if r.URL.Path == "/" {
-        http.Redirect(w, r, "index.html", http.StatusFound)
-    }
-
-    t, err := template.ParseFiles("template/html/404.html")
-    if (err != nil) {
-        fmt.Println(err)
-    }
-    t.Execute(w, nil)
+     
 }
 
 func responseError(w http.ResponseWriter,err error) {
@@ -104,12 +101,12 @@ func sendMessage(conn net.Conn,message *Message)([]byte,error) {
 
     connStat,ok := connMap[conn]
     if !ok{
-    	fmt.Println("Connect is not existed.")
+    	LOG.Println("Connect is not existed.")
     	return []byte("Connect Error"),errors.New("CONNECT_NOT_FOUND")
     }
 
     if connStat.status != "OK"{
-    	fmt.Println("Connect is Closed")
+    	LOG.Println("Connect is Closed")
     	return []byte("Connect Error"),errors.New("CONNECT_STATUS_ERROR")
     }
 
@@ -152,7 +149,7 @@ func CheckStatus(conn net.Conn) {
         if _,ok := logMap[filename]; !ok{
             temp,logerr := os.OpenFile( filename,os.O_WRONLY|os.O_CREATE|os.O_APPEND,0664)
             if logerr != nil {   
-                fmt.Println(logerr)
+                LOG.Println(logerr)
                 continue
             }
 
@@ -160,7 +157,7 @@ func CheckStatus(conn net.Conn) {
         }
 
     	if err != nil{
-    		fmt.Println(err)
+    		LOG.Println(err)
     		logMap[filename].Println( err.Error() )
     		break;
     	}else {
@@ -195,9 +192,9 @@ func getNodeList(w http.ResponseWriter, r *http.Request) {
 //保存节点配置
 func saveNodeList(w http.ResponseWriter, r *http.Request) {
 
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(string(body))
+    LOG.Println(string(body))
 
     var newNodeList []NodeConfig
     //保存之前尝试解析，解析出错则返回错误，不保存
@@ -217,19 +214,19 @@ func saveNodeList(w http.ResponseWriter, r *http.Request) {
 }
 
 func ConnectNode(w http.ResponseWriter, r *http.Request) {
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(body)
+    LOG.Println(body)
 
     conn, err := net.DialTimeout("tcp",string(body),time.Second*10);
     if  err != nil {
-       fmt.Println(err.Error())
+       LOG.Println(err.Error())
        responseError(w,err)
        return  
     }
     
-    fmt.Println(conn.LocalAddr())
-    fmt.Println(conn.RemoteAddr())
+    LOG.Println(conn.LocalAddr())
+    LOG.Println(conn.RemoteAddr())
 
     connMap[conn] = &ConnStat{status:"OK", lock:sync.Mutex{} }
     go CheckStatus(conn)
@@ -239,9 +236,9 @@ func ConnectNode(w http.ResponseWriter, r *http.Request) {
 
 //断开连接
 func removeConnect(w http.ResponseWriter, r *http.Request) {
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(body)
+    LOG.Println(body)
 
     removeAddr := string(body)
 
@@ -264,9 +261,9 @@ func getLoadConfig(w http.ResponseWriter, r *http.Request) {
 //保存loadConfig的配置
 func saveLoadConfig(w http.ResponseWriter, r *http.Request) {
 
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(string(body))
+    LOG.Println(string(body))
 
     newLoadConfig := make([]LoadHelper,0)
     //保存之前尝试解析，解析出错则返回错误，不保存
@@ -294,9 +291,9 @@ func getVardefine(w http.ResponseWriter, r *http.Request){
 //保存Vardefine的配置
 func saveVardefine(w http.ResponseWriter, r *http.Request) {
 
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(string(body))
+    LOG.Println(string(body))
 
     var newVarDefine = make(map[string][]string)   //变量配置
     //保存之前尝试解析，解析出错则返回错误，不保存
@@ -329,9 +326,9 @@ func getRandConfMap(w http.ResponseWriter, r *http.Request){
 //保存ColumnMap的配置
 func saveColumnMap(w http.ResponseWriter, r *http.Request) {
 
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(string(body))
+    LOG.Println(string(body))
 
     var newColumnMap = make(map[string][]string)   //列名配置
     //保存之前尝试解析，解析出错则返回错误，不保存
@@ -352,9 +349,9 @@ func saveColumnMap(w http.ResponseWriter, r *http.Request) {
 //保存 RandConfMap 的配置
 func saveRandConfMap(w http.ResponseWriter, r *http.Request) {
 
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(string(body))
+    LOG.Println(string(body))
 
     var newRandConfMap = make(map[string][]string)   //列名配置
     //保存之前尝试解析，解析出错则返回错误，不保存
@@ -422,25 +419,25 @@ func InitConfig() {
     if err := json.Unmarshal(jsonData,&LoadConfig); err != nil{
         panic(err)
     }
-    fmt.Println(LoadConfig)
+    LOG.Println(LoadConfig)
 
     //加载dataConfig.json
     jsonData,_ = ioutil.ReadFile("dataConfig.json")
     if err := json.Unmarshal(jsonData,&dataConfig); err != nil{
         panic(err)
     }
-    fmt.Println(dataConfig)
+    LOG.Println(dataConfig)
 
     //加载vardefine.json
     jsonData,_ = ioutil.ReadFile("vardefine.json")
     if err := json.Unmarshal(jsonData,&varDefine); err != nil{
         panic(err)
     }
-    fmt.Println(varDefine)
+    LOG.Println(varDefine)
 
     //加载 export.sql
     exportsql,_ = ioutil.ReadFile("export.sql")
-    fmt.Println(string(exportsql))
+    LOG.Println(string(exportsql))
 
 }
 
@@ -452,9 +449,9 @@ func getExportSQL(w http.ResponseWriter, r *http.Request) {
 //保存 ExportSQL 的配置
 func saveExportSQL(w http.ResponseWriter, r *http.Request) {
 
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(string(body))
+    LOG.Println(string(body))
     exportsql = body
 
     if err := saveConfig(exportsql,"testExport.sql"); err != nil{
@@ -467,7 +464,7 @@ func saveExportSQL(w http.ResponseWriter, r *http.Request) {
 //执行 exportSQL 导出源数据
 func executeExportSQL(w http.ResponseWriter, r *http.Request) {
 
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
     executesql := make(map[string]string)
 
@@ -476,7 +473,7 @@ func executeExportSQL(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    fmt.Println(executesql)
+    LOG.Println(executesql)
     //先重建目录，已有的情况下删除整个
     if err := RebuildDir("source/" + executesql["modelname"]); err != nil{
         responseError(w,err)
@@ -491,10 +488,10 @@ func executeExportSQL(w http.ResponseWriter, r *http.Request) {
     SqlString := string(SqlBytes)
     
     SqlString = strings.NewReplacer("${ExportSQL}",executesql["sql"]).Replace(SqlString)
-    fmt.Println( SqlString )
+    LOG.Println( SqlString )
 
     result := ExecSQLPlus(SqlString)
-    fmt.Println( result )
+    LOG.Println( result )
 
     w.Write([]byte(result))
 
@@ -508,12 +505,12 @@ func getSourceList(w http.ResponseWriter, r *http.Request) {
 
     for _,v := range fileInfos{
         if(v.IsDir()){
-            fmt.Println(v.Name())
+            LOG.Println(v.Name())
             sourceList = append(sourceList,v.Name())
         }
     }
 
-    fmt.Println(sourceList)
+    LOG.Println(sourceList)
 
     result,_ := json.Marshal(sourceList)
     w.Write(result)
@@ -532,14 +529,14 @@ func getModelConfig(w http.ResponseWriter, r *http.Request) {
 
     for _,v := range modelFiles{
         if(v.IsDir()){
-            fmt.Println(v.Name())
+            LOG.Println(v.Name())
             if _,ok := dataConfig.Models[v.Name()]; !ok{
                 dataConfig.Models[v.Name()] = 0
             }
         }
     }
 
-    fmt.Println(dataConfig.Models)
+    LOG.Println(dataConfig.Models)
     result,_ := json.Marshal(dataConfig.Models)
     w.Write(result)
 }
@@ -547,9 +544,9 @@ func getModelConfig(w http.ResponseWriter, r *http.Request) {
 
 //保存模板配置
 func saveModelConfig(w http.ResponseWriter, r *http.Request) {
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(string(body))
+    LOG.Println(string(body))
 
     var Models =make(map[string]int)   //模板配置
     //保存之前尝试解析，解析出错则返回错误，不保存
@@ -570,7 +567,7 @@ func saveModelConfig(w http.ResponseWriter, r *http.Request) {
 //生成模板
 func genModel(w http.ResponseWriter, r *http.Request) {
     
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
     sourcename := string(body)
 
@@ -591,7 +588,7 @@ func genModel(w http.ResponseWriter, r *http.Request) {
             sourceFiles = append(sourceFiles,f.Name())
         }
     }
-    fmt.Println(sourceFiles)
+    LOG.Println(sourceFiles)
 
     for _,fname := range sourceFiles {
         var path = "source/"+ sourcename + "/" + fname
@@ -629,7 +626,7 @@ func genModel(w http.ResponseWriter, r *http.Request) {
 
             if !varMatch && !randMatch{
                 //既在列名配置里，又没有对应的变量或随机配置
-                fmt.Println("ERROR: " + varName + " not found. Please check in vardefine.json or RandConfMap.")
+                LOG.Println("ERROR: " + varName + " not found. Please check in vardefine.json or RandConfMap.")
                 responseError(w,errors.New("ERROR: " + varName + " not found. Please check in vardefine.json or RandConfMap."))
             }
 
@@ -648,7 +645,7 @@ func genModel(w http.ResponseWriter, r *http.Request) {
                         
                     if _,ok := varDefine[curVarName]; !ok {
                         curVarStr := varPrefix + strconv.Itoa(varSeq+growth*j)
-                        fmt.Println(curVarName +" Grow Automatic: " + curVarStr)
+                        LOG.Println(curVarName +" Grow Automatic: " + curVarStr)
                         ValueMap[record[i]] = curVarStr +"${" + curVarName + "}"
                     }else{    //如果主动配置了 empno2 等，则不需要根据来增长
                         ValueMap[record[i]] = varDefine[curVarName][0] +"${" + curVarName + "}"
@@ -684,7 +681,7 @@ func genModel(w http.ResponseWriter, r *http.Request) {
         }
         SourceStr,ModelStr = SourceStr+"\n",ModelStr+"\n"
 
-        fmt.Println(SourceStr + "\n" + ModelStr)
+        LOG.Println(SourceStr + "\n" + ModelStr)
         //将模板字符串写入文件
         tempfile,err := os.OpenFile("model/" + sourcename +"/"+ tablename+".unl",os.O_WRONLY|os.O_CREATE|os.O_TRUNC,0664)
         defer tempfile.Close()
@@ -697,16 +694,16 @@ func genModel(w http.ResponseWriter, r *http.Request) {
 
     for i,v := range ValueMap{
         if len(i) <= 4{
-            fmt.Println("WARN:Please check " + i + ":" + v +" manually,maybe it's Wrong.")
+            LOG.Println("WARN:Please check " + i + ":" + v +" manually,maybe it's Wrong.")
         }
     }
 }
 
 //删除source或model下的源数据或模板数据
 func deleteDir(w http.ResponseWriter, r *http.Request) {
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(string(body))
+    LOG.Println(string(body))
 
     var dirpath = string(body) //目录路径
     if err := os.RemoveAll(dirpath);err != nil{
@@ -719,9 +716,9 @@ func deleteDir(w http.ResponseWriter, r *http.Request) {
 
 //查看source下的源数据 或 查看 model目录下的模板数据
 func checkDetail(w http.ResponseWriter, r *http.Request) {
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(string(body))
+    LOG.Println(string(body))
 
     var dirpath = string(body) //目录路径
     var detail = ""
@@ -734,7 +731,7 @@ func checkDetail(w http.ResponseWriter, r *http.Request) {
                 return nil
             }
 
-            fmt.Println(path)
+            LOG.Println(path)
             detail = detail + f.Name() + "\n"
 
             body, err := ioutil.ReadFile(path)
@@ -764,9 +761,9 @@ func getGlobalVar(w http.ResponseWriter, r *http.Request){
 
 //保存全局变量
 func saveGlobalVar(w http.ResponseWriter, r *http.Request) {
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(string(body))
+    LOG.Println(string(body))
 
     var newGlobalVar =make(map[string]int)   //模板配置
     //保存之前尝试解析，解析出错则返回错误，不保存
@@ -787,9 +784,9 @@ func saveGlobalVar(w http.ResponseWriter, r *http.Request) {
 
 //开始构造
 func startBuild(w http.ResponseWriter, r *http.Request) {
-    fmt.Println(r)
+    LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    fmt.Println(string(body))
+    LOG.Println(string(body))
 
     //根据配置，根据权重模板切片序列 和 初始化随机串
     ModelSlice := InitModels(dataConfig.Models,1000)
@@ -891,7 +888,7 @@ func InitModels(Models map[string]int, n int) ( ModelSlice []string){
         wSlice = append(wSlice,sum)          
     }
     
-    fmt.Println( Models )
+    LOG.Println( Models )
 
     //经过上面的处理后，比如初始的model:1,model1:2,model2:3 
     //在dirSlice和wSlice中的值分别为model,model1,mode2 1 3 5
@@ -1023,7 +1020,7 @@ func ParseDir(dirname string)(error){
                 return nil
             }
 
-            fmt.Println(path )
+            LOG.Println(path )
 
             filename := strings.TrimSuffix(f.Name(),".unl")
             //解析文件，读取到字符串里去,然后解析为模板
@@ -1076,7 +1073,7 @@ func parseTemplate(tempStr string)(*MyTemplate){
     fmt.Printf("strSlice =%v\n",result.Strslice)
     fmt.Printf("repSlice =%v\n",result.Repslice)
     result.Length = result.Length + 200   // 由于Length并不能准确计算出模板会有多长，因此将计算出的值增加200，以避免出错。如果出现那种造200以上的随机字符串活枚举字符串之类的，我也只能无语了，改大这个值吧。
-    fmt.Println("MyTemplate Length: " + strconv.Itoa(result.Length))
+    LOG.Println("MyTemplate Length: " + strconv.Itoa(result.Length))
 
     return result
 }
@@ -1128,7 +1125,7 @@ func ParseCSV(filepath string) ([]string , [][]string, error){
     csvReader := csv.NewReader(csvfile)
     records,err := csvReader.ReadAll()
     if err != nil{
-        fmt.Println("ERROR:" + filepath + " was parsed failed,this file is wrong CSV format. ")
+        LOG.Println("ERROR:" + filepath + " was parsed failed,this file is wrong CSV format. ")
         return nil, nil, err
     }
 
