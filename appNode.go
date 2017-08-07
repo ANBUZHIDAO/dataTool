@@ -33,19 +33,20 @@ type Response struct{
 var ListenAddr = "192.168.1.110:4412"
 
 var appStatus = 0    
-//应用节点的状态，0 为初始状态，接收到连接后，状态改为非0，如果此时再接收到连接请求，报错
-//收到关闭连接的请求后，状态改为0，继续监听，可以再次处理连接
-//收到关闭系统的请求后，关闭应用。
+//应用节点的状态，0 为初始状态，接收到连接后，状态改为1，
+//单状态不为0时再接收到连接请求，报错
+//状态为1时收到关闭连接的请求后，状态改为0，继续监听，可以再次处理连接
+//状态为1时收到启动作业的请求，检验通过后，状态改为2（启动）
+//造完文件改为3（开始导入）
+//全部批次完毕后重新改为1
 
 var logBuf = bytes.NewBufferString("")
 var LOG *log.Logger
 
 var SliceCap = 1024*1024*50   //Slice大小，管道里的元素的Slice的容量长度cap，当剩余的长度小于30000时，写入WriteCh，由写入线程写入文件。不宜太大。
-var RebuildIndexFlag = true      //导入完成后是否自动重建索引，默认为true，如果确实需要执行几次导入，则可以前几次设置为false。
-
 
 var BatchQua = 20000000      // 默认的批次构造数量，默认2000万，意思是如果总数是2500万，则会先造2000万导入后覆盖out文件，再造500万
-var ModBatch = 1 //每取一个模板的批次数
+var ModBatch = 1            //每取一个模板的批次数
 var TotalQua,Startvalue = 5,0       //总数，起始值
 
 func LoadGlobaleVar(GlobalVar map[string]int) {
@@ -54,7 +55,8 @@ func LoadGlobaleVar(GlobalVar map[string]int) {
     TotalQua = GlobalVar["TotalQua"]
     Startvalue = GlobalVar["Startvalue"]
 
-    fmt.Printf("GlobalVar: %d %d %d %d\n",BatchQua,ModBatch,TotalQua,Startvalue)   
+    fmt.Printf("GlobalVar: %d %d %d %d\n",BatchQua,ModBatch,TotalQua,Startvalue) 
+    LOG.Printf("GlobalVar: %d %d %d %d\n",BatchQua,ModBatch,TotalQua,Startvalue)   
 }
 
 var ModelSlice []string
@@ -166,12 +168,12 @@ func HanldeConnect(conn net.Conn) {
     			continue
     		}
 
-    		if receive.Action == "startTask"{   // buildData Content传表名
+    		if receive.Action == "startTask"{   
     			LOG.Println("Go to startTask.")
     			//先进行一系列校验，通过之后才真正起协程造数据，然后通知管理节点
     			go StartTask()
 
-    			response := &Response{Result:"OK", Ext:"log", Content: "Build Data Start."}
+    			response := &Response{Result:"OK", Ext:"log", Content: "Build Data Task Start."}
     			respond(conn,response) 
     			continue
     		}
@@ -191,25 +193,17 @@ func HanldeConnect(conn net.Conn) {
     			continue
     		}
 
-    		//LOG.Println("Content:" + receive.Content)
     		if logBuf.Len() > 0 {
     			response := &Response{Result:"OK", Ext:"log", Content: logBuf.String()}
     			respond(conn,response) 
     		} else{
     			response := &Response{Result:"OK", Ext:"Status", Content: "Status Check "}
     			respond(conn,response)
-    			
     		}
     		
 		}
 	}
 	
-}
-
-func checkError(err error) {
-	if err != nil {
-		LOG.Println( err.Error() )
-	}
 }
 
 func respond(conn net.Conn, response *Response) {
