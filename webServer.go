@@ -23,7 +23,7 @@ import (
 type Message struct{
     Action string
     Ext string
-    Content string 
+    Content string
 }
 
 type Response struct{
@@ -38,7 +38,7 @@ type ConnStat struct{
 }
 
 var connMap = make(map[net.Conn] *ConnStat)
-var logMap = make(map[string]*log.Logger)
+var logMap = make(map[string]*os.File)
 
 var LOG *log.Logger
 
@@ -96,18 +96,18 @@ func responseError(w http.ResponseWriter,err error) {
     w.Write([]byte(err.Error()))
 }
 
-func sendMessage(conn net.Conn,message *Message)([]byte,error) {
+func sendMessage(conn net.Conn,message *Message)(*Response,error) {
 	send, _ := json.Marshal(message)
 
     connStat,ok := connMap[conn]
     if !ok{
     	LOG.Println("Connect is not existed.")
-    	return []byte("Connect Error"),errors.New("CONNECT_NOT_FOUND")
+    	return nil,errors.New("CONNECT_NOT_FOUND")
     }
 
     if connStat.status != "OK"{
     	LOG.Println("Connect is Closed")
-    	return []byte("Connect Error"),errors.New("CONNECT_STATUS_ERROR")
+    	return nil,errors.New("CONNECT_STATUS_ERROR")
     }
 
     connStat.lock.Lock()
@@ -123,16 +123,27 @@ func sendMessage(conn net.Conn,message *Message)([]byte,error) {
 
 	conn.SetDeadline(time.Now().Add(time.Duration(5 * time.Second)))
 
-	var buf [1024]byte
-	n, err := conn.Read(buf[0:])   //如果客户端一次性写入超过buf长度的字符，没读完的话，再次读取会接着读
-	if err != nil {   //如果出错，关闭连接
-        conn.Close()
-		connStat.status = "NOK"
-        delete(connMap,conn)   //从节点状态map里删除？
-		return nil,err
-	}else{
-		conn.SetDeadline(time.Time{})
-		return buf[:n],nil
+	var buf [102400]byte
+    for {
+	   n, err := conn.Read(buf[0:])   //如果客户端一次性写入超过buf长度的字符，没读完的话，再次读取会接着读
+	   if err != nil {   //如果出错，关闭连接
+            conn.Close()
+		    connStat.status = "NOK"
+            delete(connMap,conn)   //从节点状态map里删除？
+		    return nil,err
+	   }else{
+            //不考虑太复杂的场景
+            LOG.Println(string(buf[:n]))
+            response := new(Response)
+
+            if err := json.Unmarshal(buf[:n],&response); err != nil{
+                LOG.Println(err.Error())
+                return nil,nil;
+            }
+
+            conn.SetDeadline(time.Time{})
+            return response,nil
+        }
 	}
 }
 
@@ -153,15 +164,17 @@ func CheckStatus(conn net.Conn) {
                 continue
             }
 
-            logMap[filename] = log.New(temp,"appNode:",log.Ldate | log.Ltime)
+            logMap[filename] = temp
         }
-
+        //sendMessage的 err不为空，说明是发送或者接收响应消息 失败
     	if err != nil{
     		LOG.Println(err)
-    		logMap[filename].Println( err.Error() )
+    		logMap[filename].WriteString( err.Error() )
     		break;
     	}else {
-    		logMap[filename].Println( string(response) )
+            if response != nil && response.Ext == "log" {
+                logMap[filename].WriteString(response.Content)
+            }
     	}
 
 		time.Sleep(10* time.Second)
@@ -229,8 +242,28 @@ func ConnectNode(w http.ResponseWriter, r *http.Request) {
     LOG.Println(conn.RemoteAddr())
 
     connMap[conn] = &ConnStat{status:"OK", lock:sync.Mutex{} }
-    go CheckStatus(conn)
 
+    message := &Message{Action:"CheckStatus", Ext:"Connect", Content:"Connect Status" }
+    response,err := sendMessage(conn,message)
+
+    //sendMessage的 err不为空，说明是发送或者接收响应消息 失败,此时在sendMessage中会关闭并从connMap中删除
+    if err != nil{   //连接异常
+        responseError(w,err)
+        return
+    }else if (response == nil){
+        responseError(w,errors.New("解析" + conn.RemoteAddr().String() + "的响应消息异常"))
+        conn.Close()
+        delete(connMap,conn)
+        return
+    }else if(response.Result != "OK"){
+        responseError(w,errors.New(conn.RemoteAddr().String() + "返回异常：" + response.Content))
+        conn.Close()
+        delete(connMap,conn)
+        return
+    }
+    //只有当第一次检查appStatus成功后才算连接节点成功。
+    
+    go CheckStatus(conn)
     w.Write([]byte("OK"))
 }
 
@@ -847,9 +880,15 @@ func startBuild(w http.ResponseWriter, r *http.Request) {
             responseError(w, errors.New(conn.RemoteAddr().String() + " status invalid."))
             return
         }
-        _,err := sendMessage(conn, message)
-        if err != nil{
+        response,err := sendMessage(conn, message)
+        if err != nil{   //连接异常
             responseError(w,err)
+            return
+        }else if (response == nil){
+            responseError(w,errors.New("解析" + conn.RemoteAddr().String() + "的响应消息异常"))
+            return
+        }else if(response.Result != "OK"){
+            responseError(w,errors.New(conn.RemoteAddr().String() + "返回异常：" + response.Content))
             return
         }
     }
@@ -988,9 +1027,13 @@ func syncConfig(v interface{}, configname string)(error){
         if ConnStat.status !="OK"{
             return errors.New(conn.RemoteAddr().String() + " status not OK, con't syncConfig.")
         }
-        _,err := sendMessage(conn, message)
-        if err != nil{
+        response,err := sendMessage(conn, message)
+        if err != nil{ //说明连接异常
             return err
+        }else if (response == nil){
+            return errors.New("解析" + conn.RemoteAddr().String() + "的响应消息异常")
+        }else if(response.Result != "OK"){
+            return errors.New(conn.RemoteAddr().String() + "返回异常：" + response.Content)
         }
     }
     

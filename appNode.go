@@ -20,14 +20,12 @@ type Message struct{
     Action string
     Ext string
     Content string
-    Sequence int 
 }
 
 type Response struct{
     Result string
 	Ext  string
     Content string
-    Sequence int 
 }
 
 var ListenAddr = "192.168.1.110:4412"
@@ -39,6 +37,8 @@ var appStatus = 0
 //状态为1时收到启动作业的请求，检验通过后，状态改为2（启动）
 //造完文件改为3（开始导入）
 //全部批次完毕后重新改为1
+
+var lastRespondTime time.Time   //最后更新时间
 
 var logBuf = bytes.NewBufferString("")
 var LOG *log.Logger
@@ -111,7 +111,6 @@ type MyTemplate struct{
                         // Length并不能准确计算出模板会有多长，因为有随机字符串以及枚举值的方式
 }
 
-
 func main(){
 
 	tcpaddr, err := net.ResolveTCPAddr("tcp4",ListenAddr)
@@ -150,7 +149,20 @@ func main(){
 //这里有个问题，管理节点直接CRTL+C之类的，这里将会长期处于CLOSE_WAIT状态，小应用虽然可以不管。。
 //这里的解决方法是管理节点 conn.Read不弄成阻塞式的，5s超时，然后超时后主动发送个检查状态的，发送不到，则主动断开连接。
 func HanldeConnect(conn net.Conn) {
-	LOG.Println("Accepted") 
+	LOG.Println("Accepted")
+
+    if appStatus != 0  {
+        if time.Now().Sub(lastRespondTime)/time.Second < 30 {
+            LOG.Println("Already connected by Server.")
+            
+            response := &Response{Result:"NOK", Ext:"Connect", Content: "Already connected by Server"}
+            respond(conn,response)
+            conn.Close()
+            return
+        }   
+    }else {
+      appStatus = 1  //修改为连接中状态,此时尚未启动构造数据的Task  
+    } 
 		
 	var buf [5242880]byte
 
@@ -171,11 +183,17 @@ func HanldeConnect(conn net.Conn) {
     		if receive.Action == "startTask"{   
     			LOG.Println("Go to startTask.")
     			//先进行一系列校验，通过之后才真正起协程造数据，然后通知管理节点
-    			go StartTask()
+                if appStatus == 1{
+                    go StartTask()
 
-    			response := &Response{Result:"OK", Ext:"log", Content: "Build Data Task Start."}
-    			respond(conn,response) 
-    			continue
+                    response := &Response{Result:"OK", Ext:"log", Content: "Build Data Task Start."}
+                    respond(conn,response) 
+                }else if appStatus > 1 {
+                    response := &Response{Result:"NOK", Ext:"log", Content: "An Task still run,cannot run another"}
+                    respond(conn,response) 
+                }
+
+                continue	
     		}
 
     		if receive.Action == "syncConfig"{   // 
@@ -195,9 +213,10 @@ func HanldeConnect(conn net.Conn) {
 
     		if logBuf.Len() > 0 {
     			response := &Response{Result:"OK", Ext:"log", Content: logBuf.String()}
-    			respond(conn,response) 
+    			respond(conn,response)
+                logBuf.Reset() 
     		} else{
-    			response := &Response{Result:"OK", Ext:"Status", Content: "Status Check "}
+    			response := &Response{Result:"OK", Ext:"Status", Content: "StatusCheckResponse"}
     			respond(conn,response)
     		}
     		
@@ -209,12 +228,13 @@ func HanldeConnect(conn net.Conn) {
 func respond(conn net.Conn, response *Response) {
 	reply, _ := json.Marshal(response)
 
-    LOG.Println(string(reply))
-
     if _,err := conn.Write(reply); err != nil{
     	LOG.Println(err.Error()) //记录错误信息，并关闭连接
     	conn.Close()
+        return
     }
+    //如果响应消息无误，则更新最后回复时间
+    lastRespondTime = time.Now()
 }
 
 //保存配置数据
@@ -256,6 +276,9 @@ var buildCh = make(chan *Bufferstruct,4)
 
 
 func StartTask() {
+
+    appStatus = 2
+    defer func(){appStatus = 1}()    //匿名函数直接调用  因为defer后面必须是个函数调用
 
     LoadGlobaleVar(dataConfig.GlobalVar)
 
