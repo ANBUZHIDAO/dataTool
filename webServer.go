@@ -84,6 +84,8 @@ func main(){
 
     http.HandleFunc("/getGlobalVar", getGlobalVar)
     http.HandleFunc("/saveGlobalVar", saveGlobalVar)
+    http.HandleFunc("/getRebuildSql", getRebuildSql)
+    http.HandleFunc("/saveRebuildSql", saveRebuildSql)
     http.HandleFunc("/startBuild", startBuild)
 
     http.HandleFunc("/getBuildStatus", getBuildStatus)
@@ -272,7 +274,7 @@ func saveNodeList(w http.ResponseWriter, r *http.Request) {
 
     dataConfig.NodeList = newNodeList
     fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
-    if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
+    if err := saveConfig(fileContent,"dataConfig.json"); err != nil{
         responseError(w,err)
         return
     }
@@ -361,7 +363,7 @@ func saveLoadConfig(w http.ResponseWriter, r *http.Request) {
 
     LoadConfig = newLoadConfig
     fileContent,_ := json.MarshalIndent(LoadConfig, ""," ")
-    if err := saveConfig(fileContent,"testLoadConfig.json"); err != nil{
+    if err := saveConfig(fileContent,"loadConfig.json"); err != nil{
         responseError(w,err)
         return
     }
@@ -391,7 +393,7 @@ func saveVardefine(w http.ResponseWriter, r *http.Request) {
 
     varDefine = newVarDefine
     fileContent,_ := json.MarshalIndent(varDefine, ""," ")
-    if err := saveConfig(fileContent,"testVardefine.json"); err != nil{
+    if err := saveConfig(fileContent,"vardefine.json"); err != nil{
         responseError(w,err)
         return
     } 
@@ -426,7 +428,7 @@ func saveColumnMap(w http.ResponseWriter, r *http.Request) {
 
     dataConfig.ColumnMap = newColumnMap
     fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
-    if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
+    if err := saveConfig(fileContent,"dataConfig.json"); err != nil{
         responseError(w,err)
         return
     }
@@ -449,7 +451,7 @@ func saveRandConfMap(w http.ResponseWriter, r *http.Request) {
 
     dataConfig.RandConfMap = newRandConfMap
     fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
-    if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
+    if err := saveConfig(fileContent,"dataConfig.json"); err != nil{
         responseError(w,err)
         return
     }
@@ -541,7 +543,7 @@ func saveExportSQL(w http.ResponseWriter, r *http.Request) {
     LOG.Println(string(body))
     exportsql = body
 
-    if err := saveConfig(exportsql,"testExport.sql"); err != nil{
+    if err := saveConfig(exportsql,"export.sql"); err != nil{
         responseError(w,err)
         return
     }
@@ -644,7 +646,7 @@ func saveModelConfig(w http.ResponseWriter, r *http.Request) {
 
     dataConfig.Models = Models
     fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
-    if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
+    if err := saveConfig(fileContent,"dataConfig.json"); err != nil{
         responseError(w,err)
         return
     }
@@ -860,7 +862,26 @@ func saveGlobalVar(w http.ResponseWriter, r *http.Request) {
 
     dataConfig.GlobalVar = newGlobalVar
     fileContent,_ := json.MarshalIndent(dataConfig, ""," ")
-    if err := saveConfig(fileContent,"testDataConfig.json"); err != nil{
+    if err := saveConfig(fileContent,"dataConfig.json"); err != nil{
+        responseError(w,err)
+        return
+    }
+    w.Write([]byte("OK"))
+}
+
+//获取重建索引和表分析的SQL
+func getRebuildSql(w http.ResponseWriter, r *http.Request){
+
+    result,_ := ioutil.ReadFile("RebuildAndGather.sql")
+    w.Write(result)
+}
+
+//保存重建索引和表分析的SQL
+func saveRebuildSql(w http.ResponseWriter, r *http.Request) {
+    body, _ := ioutil.ReadAll(r.Body)
+    LOG.Println(string(body))
+
+    if err := saveConfig(body,"RebuildAndGather.sql"); err != nil{
         responseError(w,err)
         return
     }

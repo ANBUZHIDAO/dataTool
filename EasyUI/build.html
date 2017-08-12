@@ -41,7 +41,7 @@
                       <input type="radio" name="colors" value=true v-model="isRebuildIndex" />分析
                       <input type="radio" name="colors" value=false v-model="isRebuildIndex" />不分析
                     </span>
-                    <button class="l-btn l-btn-small"  v-on:click="isShowDetail=true">
+                    <button class="l-btn l-btn-small"  v-on:click="getRebuildSql()">
                       <span class="l-btn-left l-btn-text">查看重建索引和表分析SQL</span>
                     </button>    
                 </td>
@@ -54,10 +54,10 @@
     <span style="height:100%;font-size:18px">开始启动构造</span>
   </button>
 
-  <div class="panel window panel-htop panel-header panel-header-noborder window-header" style="left: 2%; top: 10%; width: 95%; display: block;" v-show="isShowDetail">
+  <div class="panel window panel-htop panel-header panel-header-noborder window-header" style="left: 2%; top: 10%; width: 95%; height: 75%; display: block;" v-show="isShowDetail">
     <div class="panel-header" style="width: 100%">
       <span class="panel-title" style="width: 100%">重建索引和表分析SQL</span>
-      <button class="l-btn l-btn-text"  style="margin-left:20px;width:60px">保存SQL</button>
+      <button class="l-btn l-btn-text"  style="margin-left:20px;width:60px" v-on:click="saveRebuildSql()">保存SQL</button>
       <div class="panel-tool" style="margin-right: 4px" v-on:click="isShowDetail=false"> <a class="panel-tool-close" ></a> </div>
     </div>
   
@@ -132,7 +132,6 @@ vm = new Vue({
     saveGlobalVar(){
       console.log(JSON.stringify(this.GlobalVar))
       console.log(this.isRebuildIndex)
-      console.log(this.rebuildIndexSQL)
 
       Response = $.ajax({url:"/saveGlobalVar",async:false,type:"POST",dataType:"text",data:JSON.stringify(this.GlobalVar)});
       console.log(JSON.stringify(Response))
@@ -140,6 +139,27 @@ vm = new Vue({
         $.messager.alert("结果", "保存成功","info");
       } else {
         $.messager.alert("错误", "Save Exception :" + Response.responseText,"error");
+      }
+    },
+    getRebuildSql(){
+      Response = $.ajax({url:"/getRebuildSql",async:false,type:"GET",dataType:"text"});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        this.rebuildIndexSQL = Response.responseText
+        this.isShowDetail = true
+      } else {
+        $.messager.alert("错误", "启动构造任务异常:" + Response.responseText,"error");
+      }
+    },
+    saveRebuildSql(){
+      console.log(this.rebuildIndexSQL)
+
+      Response = $.ajax({url:"/saveRebuildSql",async:false,type:"POST",dataType:"text",data:this.rebuildIndexSQL});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        $.messager.alert("结果", "保存成功","info");
+      } else {
+        $.messager.alert("错误", "Save RebuildSql Exception :" + Response.responseText,"error");
       }
     },
     startBuildJob(){
