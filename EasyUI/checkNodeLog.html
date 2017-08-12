@@ -32,16 +32,16 @@
 
   <table class="datagrid-body datagrid-btable" style="width: 60%;border:1px solid #ABABAB;">
     <tbody>
-      <tr class="datagrid-row" v-for="(nodeConfig,index) in nodeList" >
+      <tr class="datagrid-row" v-for="(Status,NodeAddr) in NodeStatus" >
         <td style="width:20%">
-          <div style="height:auto;" class="datagrid-cell"> {{nodeConfig.NodeAddr}} </div>
+          <div style="height:auto;" class="datagrid-cell"> {{ NodeAddr }} </div>
         </td>
         <td style="width:20%">
-          <div style="text-align:center;height:auto;" class="datagrid-cell"> {{ nodeConfig.Status }} </div>
+          <div style="text-align:center;height:auto;" class="datagrid-cell"> {{ StatusDesc[Status] }} </div>
         </td>
         <td style="width:60%">
           <div style="text-align:center;height:auto;" class="datagrid-cell">
-            <button class="l-btn l-btn-small" v-on:click="CheckDetail(nodeConfig.NodeAddr)">
+            <button class="l-btn l-btn-small" v-on:click="CheckDetail(NodeAddr)">
               <span class="l-btn-left"> <span class="l-btn-text">查看日志</span></span>
             </button>
           </div>
@@ -52,11 +52,8 @@
   </table>
 
   <div class="panel-header panel-title" style="width: 99%">节点日志</div>
-  <div v-if="selectedNodeConfig != null"> 
-    <span class="textbox textbox-invalid easyui-fluid" style="width: 191px;margin-top: 10px;" >
-      <input type="text" class="textbox-text" style="width: 183px; margin-top:0px;" v-bind:value="selectedNodeConfig.NodeAddr" disabled="true"> 
-      </input>
-    </span>
+  <div>
+    <textarea style="height:400px; width:100%" readonly="readonly" v-bind:value="logdetail"></textarea>
   </div>
 </div>
 
@@ -65,18 +62,28 @@
 vm = new Vue({
   el: '#app',
   data: {
-    nodeList:
-      [
-        {
-          NodeAddr:"192.168.1.110:4412",
-          Status:"OK"
-        },
-        {
-          NodeAddr:"192.168.1.111:4412",
-          Status:"OK"
-        }
-      ],
+    NodeStatus :{
+        "192.168.1.112:4412": 1,
+        "192.168.1.111:4412": 3
+    },
+    StatusDesc: {
+        "1": "正常连接",
+        "2": "构造数据中",
+        "3": "开始导入"
+    },
     logdetail:"",
+  },
+  created : function (){
+
+    Response = $.ajax({url:"/getNodeStatus",async:false,type:"GET",dataType:"text"});
+    console.log(JSON.stringify(Response))
+    if  (Response.status == "200" ){
+      this.NodeStatus = JSON.parse(Response.responseText)
+      console.log(JSON.stringify(this.NodeStatus))
+    } else {
+      $.messager.alert("错误", "getNodeStatus Exception：" + Response.responseText,"error");
+    }
+
   },
   methods:{
     ChangeClicked(NodeConfig){
@@ -85,6 +92,19 @@ vm = new Vue({
     },
     CheckDetail(addr){
       //去获取日志信息
+      console.log( addr )
+
+      filename = addr + ".log"
+
+      Response = $.ajax({url:"/getLogDetail",async:false,type:"POST",dataType:"text",data:filename});
+      console.log(JSON.stringify(Response))
+      if  (Response.status == "200" ){
+        this.logdetail = Response.responseText
+        this.logdetail = this.logdetail.substring(this.logdetail.indexOf("\n")+1)
+      } else {
+        $.messager.alert("错误", "getLogDetail Exception：" + Response.responseText,"error");
+      }
+
     }
 
   }

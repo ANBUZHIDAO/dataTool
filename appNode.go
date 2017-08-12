@@ -33,9 +33,8 @@ var ListenAddr = "192.168.1.110:4412"
 var appStatus = 0    
 //应用节点的状态，0 为初始状态，接收到连接后，状态改为1，
 //单状态不为0时再接收到连接请求，报错
-//状态为1时收到关闭连接的请求后，状态改为0，继续监听，可以再次处理连接
-//状态为1时收到启动作业的请求，检验通过后，状态改为2（启动）
-//造完文件改为3（开始导入）
+//状态为1时收到启动作业的请求，检验通过后，状态改为2（构造数据中）
+//每批次造完开始导入改为3，导入完成改为2，如果所有批次都完成会紧接着就改为1了
 //全部批次完毕后重新改为1
 
 var lastRespondTime time.Time   //最后更新时间
@@ -143,20 +142,23 @@ func main(){
 	}
 }
 
-//这里本来可以采用单线程短连接，简单点，但是我就是想搞成这样的TCP Socket长连接了，来打我啊。
+//这里本来可以采用单线程短连接，简单点，但是我就是想搞成这样的TCP Socket长连接了。
 //Socket也是我乐意，采用http或rpc等估计更简单，但是我在学习Socket，我乐意，不爽来打我啊
 //处理TCP长连接要深刻认识到一点，TCP是一个没有记录边界的字节流协议。小心粘包或缓冲区过小，一次性读不完。
-//这里有个问题，管理节点直接CRTL+C之类的，这里将会长期处于CLOSE_WAIT状态，小应用虽然可以不管。。
-//这里的解决方法是管理节点 conn.Read不弄成阻塞式的，5s超时，然后超时后主动发送个检查状态的，发送不到，则主动断开连接。
+//这里有个问题，管理节点直接CRTL+C之类的，这里将会长期处于CLOSE_WAIT状态，小应用不管了。。
 func HanldeConnect(conn net.Conn) {
 	LOG.Println("Accepted")
 
     if appStatus != 0  {
-        if time.Now().Sub(lastRespondTime)/time.Second < 30 {
+        if time.Now().Sub(lastRespondTime)/time.Second < 11 {
             LOG.Println("Already connected by Server.")
             
             response := &Response{Result:"NOK", Ext:"Connect", Content: "Already connected by Server"}
-            respond(conn,response)
+            reply, _ := json.Marshal(response)
+
+            if _,err := conn.Write(reply); err != nil{
+                LOG.Println(err.Error()) //记录错误信息，并关闭连接
+            }
             conn.Close()
             return
         }   
@@ -171,7 +173,7 @@ func HanldeConnect(conn net.Conn) {
 		if err != nil {
 			return
 		}else{
-			LOG.Println(string(buf[:n]))
+			//LOG.Println(string(buf[:n]))  这里不注释掉的话，垃圾的检查心跳的消息日志太多
 			receive := new(Message)
 
     		if err := json.Unmarshal(buf[:n],&receive); err != nil{
@@ -182,7 +184,7 @@ func HanldeConnect(conn net.Conn) {
 
     		if receive.Action == "startTask"{   
     			LOG.Println("Go to startTask.")
-    			//先进行一系列校验，通过之后才真正起协程造数据，然后通知管理节点
+    			//先进行一系列校验(检查空间是否足够--待添加)，通过之后才真正起协程造数据，然后通知管理节点
                 if appStatus == 1{
                     go StartTask()
 
@@ -196,8 +198,8 @@ func HanldeConnect(conn net.Conn) {
                 continue	
     		}
 
-    		if receive.Action == "syncConfig"{   // 
-    			LOG.Println(receive.Content)
+    		if receive.Action == "syncConfig"{
+    			//LOG.Println(receive.Content)
     			LOG.Println(receive.Ext)
 
     			err := receiveConfig(receive.Ext,receive.Content)
@@ -212,11 +214,17 @@ func HanldeConnect(conn net.Conn) {
     		}
 
     		if logBuf.Len() > 0 {
-    			response := &Response{Result:"OK", Ext:"log", Content: logBuf.String()}
+                var returnLog string
+                if logBuf.Len() > 51200{
+                    returnLog = string(logBuf.Next(51200))
+                }else {
+                    returnLog = logBuf.String()
+                    logBuf.Reset() 
+                }
+    			response := &Response{Result:"OK", Ext:"log", Content: returnLog}
     			respond(conn,response)
-                logBuf.Reset() 
     		} else{
-    			response := &Response{Result:"OK", Ext:"Status", Content: "StatusCheckResponse"}
+    			response := &Response{Result:"OK", Ext:"status", Content: strconv.Itoa(appStatus)}
     			respond(conn,response)
     		}
     		
@@ -271,9 +279,9 @@ type Bufferstruct struct{
 }
 
 var complete = make(chan int)
-var writeCh = make(chan *Bufferstruct,4)
-var buildCh = make(chan *Bufferstruct,4)
-
+var writeCh chan *Bufferstruct
+var buildCh chan *Bufferstruct
+var thisConfig = make(map[string][]string)
 
 func StartTask() {
 
@@ -281,8 +289,6 @@ func StartTask() {
     defer func(){appStatus = 1}()    //匿名函数直接调用  因为defer后面必须是个函数调用
 
     LoadGlobaleVar(dataConfig.GlobalVar)
-
-    var thisConfig = make(map[string][]string)
 
     for _,NodeConfig := range dataConfig.NodeList{
         if ListenAddr == NodeConfig.NodeAddr{
@@ -295,6 +301,9 @@ func StartTask() {
             return
         }
     }
+    //每次启动Task时，重新定义两个管道
+    writeCh = make(chan *Bufferstruct,4)
+    buildCh = make(chan *Bufferstruct,4)
 
     var bufStructs [4]*Bufferstruct
     for _,v := range bufStructs{
@@ -472,6 +481,8 @@ fields TERMINATED BY "," optionally enclosed by '"'
 (${header})`
 //新版本的LoadData，并行起6个导入协程
 func LoadData() {
+    appStatus = 3
+    defer func(){appStatus = 2}()    //匿名函数直接调用  因为defer后面必须是个函数调用
 
     if TotalQua <= 500000{              // 50万以下，使用传统路径
         LoadControl = TestControl
@@ -489,7 +500,7 @@ func LoadData() {
             err = os.Setenv("NLS_TIMESTAMP_FORMAT","YYYY-MM-DD hh24:mi:ssSSS")
             logfile,err := os.OpenFile("log/load"+ strconv.Itoa(n) +".log",os.O_WRONLY|os.O_CREATE|os.O_TRUNC,0664)   
             if err != nil {   
-                panic(err)
+                LOG.Println(err.Error())
             }
 
             for {
@@ -512,6 +523,14 @@ func LoadData() {
         }()
     }
 
+    filepathmap := make(map[string]string)    //建立表与输出文件的关系，用于下面sqlldr命令组装
+    for dir,tables := range thisConfig{
+        for _,table := range tables{
+           filepathmap[table] = dir
+        }
+    }
+
+
     loadCmds := make([]string,0)
     //For循环开始构造Load所需命令和控制文件
     for _,config := range LoadConfig{
@@ -523,7 +542,12 @@ func LoadData() {
             }
             header := maxTemp[table][0]
 
-            infile := filepath.Join("out", table+".out")
+            if _,ok := filepathmap[table]; !ok{
+                continue
+            }
+            loadpath := filepathmap[table]
+
+            infile := filepath.Join(loadpath, table+".out")
             LOG.Println(infile)
             if _,err := os.Stat(infile); err != nil {
                 continue
@@ -533,7 +557,7 @@ func LoadData() {
             tempctl,err := os.OpenFile("log/"+ table +".ctl",os.O_WRONLY|os.O_CREATE|os.O_TRUNC,0664)
             _,err = rep.WriteString(tempctl,LoadControl)    
             if err != nil {   
-                panic(err)
+                LOG.Println(err.Error())
             }
             tempctl.Close()
 

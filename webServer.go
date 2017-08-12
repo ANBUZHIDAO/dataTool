@@ -33,8 +33,9 @@ type Response struct{
 }
 
 type ConnStat struct{
-	status string // OK NOK
+	status int
 	lock  sync.Mutex   //使用锁来简单保证一下连接不粘包,统一的sendMessage函数里发送消息前先加锁，函数退出时释放锁
+    buf [1024000]byte  //不用每次sendMessage都重新申请内存，但是只有一个的话，多个节点发送时会混乱，保证每个连接有自己的缓冲区
 }
 
 var connMap = make(map[net.Conn] *ConnStat)
@@ -84,6 +85,8 @@ func main(){
     http.HandleFunc("/saveGlobalVar", saveGlobalVar)
     http.HandleFunc("/startBuild", startBuild)
 
+    http.HandleFunc("/getLogDetail", getLogDetail)
+
     http.Handle("/", http.FileServer(http.Dir("EasyUI")))
 
     fmt.Println("Server will start and Listen at 8060")
@@ -105,7 +108,7 @@ func sendMessage(conn net.Conn,message *Message)(*Response,error) {
     	return nil,errors.New("CONNECT_NOT_FOUND")
     }
 
-    if connStat.status != "OK"{
+    if connStat.status < 0 {
     	LOG.Println("Connect is Closed")
     	return nil,errors.New("CONNECT_STATUS_ERROR")
     }
@@ -116,19 +119,20 @@ func sendMessage(conn net.Conn,message *Message)(*Response,error) {
 	_,err := conn.Write(send);
 	if err != nil {   //如果出错，关闭连接
         conn.Close()
-        connStat.status = "NOK"
+        connStat.status = -1
         delete(connMap,conn)   //从节点状态map里删除？
         return nil,err
     }
 
 	conn.SetDeadline(time.Now().Add(time.Duration(5 * time.Second)))
+    defer conn.SetDeadline(time.Time{})
 
-	var buf [102400]byte
-    for {
+    buf := connStat.buf
+    //for {
 	   n, err := conn.Read(buf[0:])   //如果客户端一次性写入超过buf长度的字符，没读完的话，再次读取会接着读
 	   if err != nil {   //如果出错，关闭连接
             conn.Close()
-		    connStat.status = "NOK"
+		    connStat.status = -1
             delete(connMap,conn)   //从节点状态map里删除？
 		    return nil,err
 	   }else{
@@ -141,13 +145,12 @@ func sendMessage(conn net.Conn,message *Message)(*Response,error) {
                 return nil,nil;
             }
 
-            conn.SetDeadline(time.Time{})
             return response,nil
         }
-	}
+	//}
 }
 
-//管理节点主动检查连接状态,每10s检查一次。 功能不止检查状态，兼职拉取日志。。
+//管理节点主动检查连接状态,每5s检查一次。 功能不止检查状态，兼职拉取日志。。
 //日志打印待进一步优化
 func CheckStatus(conn net.Conn) {
 	message := &Message{Action:"CheckStatus", Ext:"Connect", Content:"Connect Status" }
@@ -174,18 +177,40 @@ func CheckStatus(conn net.Conn) {
     	}else {
             if response != nil && response.Ext == "log" {
                 logMap[filename].WriteString(response.Content)
+            }else if response != nil && response.Ext == "status"{
+                appStatus,_ := strconv.Atoi(response.Content)
+                if connMap[conn].status != appStatus{   //状态发生更改时，更新状态并做一些其他的事。
+                    connMap[conn].status = appStatus
+                    checkAppNodeStat()
+                }    
             }
     	}
 
-		time.Sleep(10* time.Second)
+		time.Sleep(5 * time.Second)
     }
     
+}
+
+//检查App节点的状态，当所有App节点构造导入完毕后，主管理节点启动重建索引和表分析工作，分析完之后更改 BuildStatus 状态为0
+func checkAppNodeStat() {
+    allAppReady := true
+    
+    for _,ConnStat := range connMap{
+        if ConnStat.status != 1{
+            allAppReady = false
+        }
+    }
+    //当所有App节点构造导入完毕后，主管理节点启动重建索引和表分析工作
+    if allAppReady{
+        RebuildIndexAndGather()
+    }
+ 
 }
 
 //获取节点状态
 func getNodeStatus(w http.ResponseWriter, r *http.Request) {
 
-    nodeStatus := make(map[string]string)
+    nodeStatus := make(map[string]int)
     
     for conn,ConnStat := range connMap{
         nodeStatus[conn.RemoteAddr().String()] = ConnStat.status
@@ -241,7 +266,7 @@ func ConnectNode(w http.ResponseWriter, r *http.Request) {
     LOG.Println(conn.LocalAddr())
     LOG.Println(conn.RemoteAddr())
 
-    connMap[conn] = &ConnStat{status:"OK", lock:sync.Mutex{} }
+    connMap[conn] = &ConnStat{status:1, lock:sync.Mutex{} }
 
     message := &Message{Action:"CheckStatus", Ext:"Connect", Content:"Connect Status" }
     response,err := sendMessage(conn,message)
@@ -278,7 +303,7 @@ func removeConnect(w http.ResponseWriter, r *http.Request) {
     for conn,ConnStat := range connMap{
         if removeAddr == conn.RemoteAddr().String() {
             conn.Close()
-            ConnStat.status = "NOK"
+            ConnStat.status = -1
             delete(connMap,conn)   //从节点状态map里删除？
         }
     }
@@ -784,7 +809,6 @@ func checkDetail(w http.ResponseWriter, r *http.Request) {
     w.Write([]byte(detail))
 }
 
-
 //获取全局变量
 func getGlobalVar(w http.ResponseWriter, r *http.Request){
 
@@ -814,16 +838,49 @@ func saveGlobalVar(w http.ResponseWriter, r *http.Request) {
     w.Write([]byte("OK"))
 }
 
-
 //开始构造
 func startBuild(w http.ResponseWriter, r *http.Request) {
-    LOG.Println(r)
+    checkAppNodeStat()
+
+    if BuildStatus != 0{
+       responseError(w,errors.New("正在处理构造任务中，此次请求忽略"))
+        return 
+    }
+
     body, _ := ioutil.ReadAll(r.Body)
     LOG.Println(string(body))
+    if string(body) == "true"{
+        rebuildIndexflag = true
+    }else {
+        rebuildIndexflag = false
+    }
+
+    var err error = nil
+    defer func(error){
+        if err != nil{
+            BuildStatus = 0 //说明构造任务未成功下发到AppNode。
+        }else {
+            BuildStatus = 3 //构造任务下发到AppNode了
+        }
+    }(err)
 
     //根据配置，根据权重模板切片序列 和 初始化随机串
     ModelSlice := InitModels(dataConfig.Models,1000)
     randStrMap,err := InitRand(dataConfig)
+    if err != nil{
+        responseError(w,err)
+        return
+    }
+
+    for modeldir,_ := range dataConfig.Models{
+        err := ParseDir(modeldir)     //解析模板
+        if err != nil {
+            responseError(w,err)
+            return
+        }
+    }
+
+    err = ValidateStartValue()
     if err != nil{
         responseError(w,err)
         return
@@ -853,14 +910,6 @@ func startBuild(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    for modeldir,_ := range dataConfig.Models{
-        err := ParseDir(modeldir)     //解析模板
-        if err != nil {
-            responseError(w,err)
-            return
-        }
-    }
-
     err = syncConfig(models,"models")
     if err != nil{
         responseError(w,err)
@@ -876,7 +925,7 @@ func startBuild(w http.ResponseWriter, r *http.Request) {
     message := &Message{Action:"startTask", Ext:"startTask", Content:"startTask" }
 
     for conn,ConnStat := range connMap{
-        if ConnStat.status !="OK"{
+        if ConnStat.status < 0{
             responseError(w, errors.New(conn.RemoteAddr().String() + " status invalid."))
             return
         }
@@ -885,15 +934,50 @@ func startBuild(w http.ResponseWriter, r *http.Request) {
             responseError(w,err)
             return
         }else if (response == nil){
-            responseError(w,errors.New("解析" + conn.RemoteAddr().String() + "的响应消息异常"))
+            err = errors.New("解析" + conn.RemoteAddr().String() + "的响应消息异常")
+            responseError(w,err)
             return
         }else if(response.Result != "OK"){
-            responseError(w,errors.New(conn.RemoteAddr().String() + "返回异常：" + response.Content))
+            err = errors.New(conn.RemoteAddr().String() + "返回异常：" + response.Content)
+            responseError(w,err)
             return
         }
     }
     
     w.Write([]byte("OK"))
+}
+
+//保存Vardefine的配置
+func getLogDetail(w http.ResponseWriter, r *http.Request) {
+
+    LOG.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    LOG.Println(string(body))
+
+    var filename = string(body)   //变量配置
+
+    logFile,err := os.Open(filename)
+    if err != nil {
+        responseError(w,err)
+        return
+    }    
+    
+    logFileInfo,err := logFile.Stat()
+    if err != nil {
+        responseError(w,err)
+        return
+    }
+
+    var readbuf []byte
+
+    if logFileInfo.Size() > 50*1024{
+        readbuf = make([]byte,50*1024)
+        logFile.ReadAt(readbuf,logFileInfo.Size()-50*1024)
+    }else {
+        readbuf,_ = ioutil.ReadAll(logFile)
+    }
+    
+    w.Write(readbuf)
 }
 
 
@@ -1024,7 +1108,7 @@ func syncConfig(v interface{}, configname string)(error){
     message := &Message{Action:"syncConfig", Ext:configname, Content:string(jsonData) }
 
     for conn,ConnStat := range connMap{
-        if ConnStat.status !="OK"{
+        if ConnStat.status < 0 {
             return errors.New(conn.RemoteAddr().String() + " status not OK, con't syncConfig.")
         }
         response,err := sendMessage(conn, message)
@@ -1121,6 +1205,102 @@ func parseTemplate(tempStr string)(*MyTemplate){
     return result
 }
 
+var BuildStatus = 0
+//根据要造哪些表，拼接关键根值，查询数据库，如果有冲突则提示并终止
+func ValidateStartValue()( error ){
+    BuildStatus = 1
+    defer func(){BuildStatus = 2}()
+    var ValidateString = `select 'ResultStart:'||count(*)||':ResultEnd' from $username.$tablename r where r.$column  between '$from' and '$to';`
+    
+    Startvalue,TotalQua := dataConfig.GlobalVar["Startvalue"],dataConfig.GlobalVar["TotalQua"]
+    v_from,v_to := string(Itoa(Startvalue)),string(Itoa(Startvalue + TotalQua));
+    resultReg := regexp.MustCompile("ResultStart:.*:ResultEnd")          //给结果前后加上特定的值，以便于通过正则表达式从SQLPlus执行结果中取出
+    
+    for _,config := range LoadConfig{
+        for _,tablename := range config.TableList{
+            username := config.Username
+
+            if !isInNodeList(tablename){
+                continue
+            }
+
+            if thisTemplate,tok := maxTemp[tablename]; tok{   //在这次构造的模板里的才检查。比如某个表需要多构造一批数据，那么只会对这个表来检查。
+                //根据TabConf，找对应模板中的根值变量，组装校验SQL所需的between and的值。
+                if _,ok := dataConfig.ColumnMap[tablename]; !ok{  //如果dataConfig.json里没配置，则继续下一个循环
+                    continue
+                }
+
+                for _,column := range dataConfig.ColumnMap[tablename]{  //只检查dataConfig.json里配置列名，差不多足够了,有的列查起来全表扫描太耗时，如inf_offering_inst的purchase_seq,需要配置在ExcludeColumn里      
+                
+                    fmt.Println(column)
+                    if dataConfig.ExcludeMap[tablename +"."+column]{  //如果包含在ExcludeMap里，则不需要检查这一列。
+                        continue
+                    }
+                    re, _ := regexp.Compile(`\w+\${`+ tablename +`\.`+column + `\d?\},`)   //例子： 匹配如 1899101000${sub_id1},
+                    findStrings := re.FindAllString(thisTemplate[1],-1)  //找到所有的匹配，处理可能有多行记录的情况，一般有几行就会匹配到几个
+
+                    for _,v := range findStrings{
+                        vardefine := v[:strings.Index(v, "$")]  //例如 1899101000${sub_id},  vardefine=1899101000
+                        
+                        from,to := vardefine + v_from ,vardefine + v_to 
+                        rep := strings.NewReplacer("$tablename",tablename,"$username",username,"$column",column,"$from",from,"$to",to )
+                        validateSQL := rep.Replace( ValidateString )
+
+                        fmt.Println(validateSQL)
+
+                        result := resultReg.FindString(ExecSQLPlus(validateSQL))
+                        result = strings.TrimPrefix(result,"ResultStart:")
+                        result = strings.TrimSuffix(result,":ResultEnd")
+
+                        if result != "0" && result != "'||count(*)||'"{
+                            fmt.Println(result)
+                            return errors.New(tablename + "中有重复记录, 请检查:" + validateSQL )
+                        }
+                    }                         
+                }
+            }
+        }
+    }
+
+    return nil   
+}
+
+//数据结构不好，导致代码这里也就有点难看。。。 暂时先这样--后续改进
+func isInNodeList(table string)(bool){
+
+    for _,NodeConfig := range dataConfig.NodeList{
+        for _,tablelist := range NodeConfig.Config{
+            for _,_table := range tablelist{
+                if _table == table {
+                    return true
+                }
+            } 
+        }
+    }
+
+    return false
+}
+
+var rebuildIndexflag bool
+
+func RebuildIndexAndGather(){
+    if rebuildIndexflag{
+            ReIndexStartTime := time.Now()
+            if dataConfig.GlobalVar["TotalQua"] > 500000 {
+            LOG.Println( "Begin to Rebuild invalid index and analyse Table" )
+            SqlBytes,_ := ioutil.ReadFile("RebuildAndGather.sql")
+            SqlString := string(SqlBytes)
+
+            result := ExecSQLPlus(SqlString)
+            LOG.Println( result ) 
+
+            ReIndexEndTime := time.Now()
+            LOG.Printf("Rebuild Index cost time  =%v\n",ReIndexEndTime.Sub(ReIndexStartTime))
+        }
+    }
+
+    BuildStatus = 0
+}
 
 /*
     tools 工具类 
@@ -1137,13 +1317,23 @@ func RebuildDir(dir string)(error){
     return nil
 }
 
+const Len = 8   //支持几位数字
+//转数字为字符，比Sprintf高效，且这样容易控制变量长度，可以调整const Len为9位. strconv中的库函数Itoa不足8位时前面无法补0，因此写了这个，数字超过8位时，前面高位被丢弃。
+func Itoa(number int)  []byte {
+    var a [Len]byte
+    for p := Len-1; p >= 0; number,p = (number/10),p-1 {
+        a[p] = byte((number % 10) + '0' )
+    }
+    return a[:]
+}
+
 //run SQLPlus as sysdba , return Standard Output
 func ExecSQLPlus(InputSQL string )( string){
     cmd := exec.Command("sqlplus","/ as sysdba")
     stdin, err := cmd.StdinPipe()
     stdout,err := cmd.StdoutPipe()
     if err != nil {
-        panic( err )
+        return err.Error()
     }
 
     cmd.Start()
@@ -1151,13 +1341,13 @@ func ExecSQLPlus(InputSQL string )( string){
     _, err = stdin.Write([]byte("set heading off feedback off pagesize 0 verify off echo off numwidth 24 linesize 2000\n"))
     _, err = stdin.Write([]byte(InputSQL))
     if err != nil {
-        panic( err )
+        return err.Error()
     }
 
     stdin.Close()
     content, err := ioutil.ReadAll(stdout)
     if err != nil{
-        panic( err )
+        return err.Error()
     }
     return string(content)
 }
