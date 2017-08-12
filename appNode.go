@@ -14,6 +14,8 @@ import (
     "math/rand"
     "strings"
     "io"
+    "syscall"
+    "errors"
 )
 
 type Message struct{
@@ -165,8 +167,8 @@ func HanldeConnect(conn net.Conn) {
     }else {
       appStatus = 1  //修改为连接中状态,此时尚未启动构造数据的Task  
     } 
-		
-	var buf [5242880]byte
+	//缓冲区设置大一点。。。
+	var buf [5120000]byte
 
 	for {
 		n, err := conn.Read(buf[0:])   //如果客户端一次性写入超过5M ，也只能读取5M.
@@ -177,6 +179,7 @@ func HanldeConnect(conn net.Conn) {
 			receive := new(Message)
 
     		if err := json.Unmarshal(buf[:n],&receive); err != nil{
+                LOG.Println(string(buf[:n]))
         		response := &Response{Result:"NOK", Ext:"UnmarshalMessage", Content: err.Error()}
         		respond(conn,response) 
     			continue
@@ -199,9 +202,10 @@ func HanldeConnect(conn net.Conn) {
             if receive.Action == "validateTask"{   
                 LOG.Println("Go to validateTask.")
                 //检查空间是否足够
-                validateTask()
-
                 response := &Response{Result:"OK", Ext:"validateTask", Content: "validateTask"}
+                if err := validateTask() ; err != nil{
+                    response = &Response{Result:"NOK", Ext:"validateTask", Content: err.Error()}
+                }
                 respond(conn,response) 
                 continue    
             }
@@ -320,8 +324,23 @@ func validateTask()(error) {
 
     fmt.Printf("ThisBatch need bytes : %v \n", needFreeMap)
 
-    return nil
+    for dir,_ := range thisConfig{
+        if err := RebuildDir(dir);err != nil{
+            return err
+        }
 
+        var stat syscall.Statfs_t
+        if err := syscall.Statfs(dir, &stat); err != nil{
+            return err
+        }
+        free := stat.Bavail * uint64(stat.Bsize)
+        fmt.Println(free)
+        if needFreeMap[dir] < free - 10*1024*1024*1024 {
+            return errors.New(dir + " 空间不足，现有" + strconv.FormatUint(free,10) + " 需要" + strconv.FormatUint(needFreeMap[dir],10))
+        }
+    }
+
+    return nil
 }
 
 
@@ -350,11 +369,6 @@ func StartTask() {
         }
     }
 
-    for dir,_ := range thisConfig{
-        if err := RebuildDir(dir);err != nil{
-            return
-        }
-    }
     //每次启动Task时，重新定义两个管道
     writeCh = make(chan *Bufferstruct,4)
     buildCh = make(chan *Bufferstruct,4)

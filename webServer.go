@@ -34,7 +34,7 @@ type Response struct{
 
 type ConnStat struct{
 	status int
-	lock  sync.Mutex   //使用锁来简单保证一下连接不粘包,统一的sendMessage函数里发送消息前先加锁，函数退出时释放锁
+	lock  sync.Mutex   //使用锁来简单保证一下连接不粘包,统一的sendMessage函数里发送消息前先加锁，函数退出时释放锁，但是仍然无法解决半包问题
     buf [1024000]byte  //不用每次sendMessage都重新申请内存，但是只有一个的话，多个节点发送时会混乱，保证每个连接有自己的缓冲区
 }
 
@@ -867,7 +867,7 @@ func startBuild(w http.ResponseWriter, r *http.Request) {
     }(err)
 
     //根据配置，根据权重模板切片序列 和 初始化随机串
-    InitModels(dataConfig.Models,1000)
+    InitModels(dataConfig.Models,500)
     if err = InitRand(dataConfig); err != nil{
         return
     }
