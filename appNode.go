@@ -158,7 +158,7 @@ func HanldeConnect(conn net.Conn) {
             response := &Response{Result:"NOK", Ext:"Connect", Content: "Already connected by Server"}
             reply, _ := json.Marshal(response)
 
-            if _,err := conn.Write(reply); err != nil{
+            if _,err := conn.Write(append(Itoa(len(reply)),reply...)); err != nil{
                 LOG.Println(err.Error()) //记录错误信息，并关闭连接
             }
             conn.Close()
@@ -168,79 +168,109 @@ func HanldeConnect(conn net.Conn) {
       appStatus = 1  //修改为连接中状态,此时尚未启动构造数据的Task  
     } 
 	//缓冲区设置大一点。。。
-	var buf [5120000]byte
+    allbuf := make([]byte,0, 5120000)
+	var buf [102400]byte
+    var flag bool = false   //是回复日志还是回复状态，有可能一直有日志的话，会导致管理节点很难获取到App的状态
 
 	for {
-		n, err := conn.Read(buf[0:])   //如果客户端一次性写入超过5M ，也只能读取5M.
+		readLen, err := conn.Read(buf[0:])   //如果客户端一次性写入超过5M ，也只能读取5M.
 		if err != nil {
 			return
-		}else{
-			//LOG.Println(string(buf[:n]))  这里不注释掉的话，垃圾的检查心跳的消息日志太多
-			receive := new(Message)
-
-    		if err := json.Unmarshal(buf[:n],&receive); err != nil{
-                LOG.Println(string(buf[:n]))
-        		response := &Response{Result:"NOK", Ext:"UnmarshalMessage", Content: err.Error()}
-        		respond(conn,response) 
-    			continue
-    		}
-
-    		if receive.Action == "startTask"{   
-    			LOG.Println("Go to startTask.")
-                if appStatus == 1{
-                    go StartTask()
-
-                    response := &Response{Result:"OK", Ext:"log", Content: "Build Data Task Start."}
-                    respond(conn,response) 
-                }else if appStatus > 1 {
-                    response := &Response{Result:"NOK", Ext:"log", Content: "An Task still run,cannot run another"}
-                    respond(conn,response) 
-                }
-                continue	
-    		}
-
-            if receive.Action == "validateTask"{   
-                LOG.Println("Go to validateTask.")
-                //检查空间是否足够
-                response := &Response{Result:"OK", Ext:"validateTask", Content: "validateTask"}
-                if err := validateTask() ; err != nil{
-                    response = &Response{Result:"NOK", Ext:"validateTask", Content: err.Error()}
-                }
-                respond(conn,response) 
-                continue    
-            }
-
-    		if receive.Action == "syncConfig"{
-    			//LOG.Println(receive.Content)
-    			LOG.Println(receive.Ext)
-
-    			err := receiveConfig(receive.Ext,receive.Content)
-
-				response := &Response{Result:"OK", Ext:"syncConfig", Content: "syncConfig Success"}
-				if err != nil{
-					response = &Response{Result:"NOK", Ext:"syncConfig", Content: err.Error()}
-				}
-
-    			respond(conn,response) 
-    			continue
-    		}
-
-    		if logBuf.Len() > 0 {
-                var returnLog string
-                if logBuf.Len() > 51200{
-                    returnLog = string(logBuf.Next(51200))
-                }else {
-                    returnLog = logBuf.String()
-                    logBuf.Reset() 
-                }
-    			response := &Response{Result:"OK", Ext:"log", Content: returnLog}
-    			respond(conn,response)
-    		} else{
-    			response := &Response{Result:"OK", Ext:"status", Content: strconv.Itoa(appStatus)}
-    			respond(conn,response)
-    		}
-    		
 		}
+
+        allbuf = append(allbuf, buf[:readLen]...)  //读取包后的信息
+
+        //如果小于等于8则肯定不够一个消息，继续读 不接受空消息,由于采用的是一个消息一个消息的处理机制，不用考虑粘包
+        if len(allbuf) <= 8{
+            continue   //小于等于8个继续读
+        }
+
+        lenstr := string(allbuf[:8])  //前8个
+        //fmt.Println(lenstr)
+        msgLen,err := strconv.Atoi(strings.TrimLeft(lenstr,"0"))   //解析得到消息长度
+        if err != nil {
+            LOG.Println("allbuf content Exception:", string(allbuf))
+            allbuf = allbuf[:0]    //重置
+            continue
+        }
+
+        if len(allbuf) < msgLen + 8 {
+            LOG.Println("消息长度不够，半包了，接着读")
+            continue
+        }
+
+        message := allbuf[8:msgLen+8]
+        LOG.Println(string(message)) 
+        allbuf = allbuf[:0]   //重置
+
+        //fmt.Println("allbuf content after read:", string(allbuf))
+
+		//LOG.Println(string(buf[:readLen]))  这里不注释掉的话，垃圾的检查心跳的消息日志太多
+		receive := new(Message)
+
+    	if err := json.Unmarshal(message,&receive); err != nil{
+            LOG.Println(string(message))
+        	response := &Response{Result:"NOK", Ext:"UnmarshalMessage", Content: err.Error()}
+        	respond(conn,response) 
+    		continue
+    	}
+
+    	if receive.Action == "startTask"{   
+    		LOG.Println("Go to startTask.")
+            if appStatus == 1{
+                go StartTask()
+
+                response := &Response{Result:"OK", Ext:"log", Content: "Build Data Task Start."}
+                respond(conn,response) 
+            }else if appStatus > 1 {
+                response := &Response{Result:"NOK", Ext:"log", Content: "An Task still run,cannot run another"}
+                respond(conn,response) 
+            }
+            continue	
+    	}
+
+        if receive.Action == "validateTask"{   
+            LOG.Println("Go to validateTask.")
+            //检查空间是否足够
+            response := &Response{Result:"OK", Ext:"validateTask", Content: "validateTask"}
+            if err := validateTask() ; err != nil{
+                response = &Response{Result:"NOK", Ext:"validateTask", Content: err.Error()}
+            }
+            respond(conn,response) 
+            continue    
+        }
+
+    	if receive.Action == "syncConfig"{
+    		//LOG.Println(receive.Content)
+    		LOG.Println(receive.Ext)
+
+    		err := receiveConfig(receive.Ext,receive.Content)
+
+			response := &Response{Result:"OK", Ext:"syncConfig", Content: "syncConfig Success"}
+			if err != nil{
+				response = &Response{Result:"NOK", Ext:"syncConfig", Content: err.Error()}
+			}
+
+    		respond(conn,response) 
+    		continue
+    	}
+
+    	if logBuf.Len() > 0 && flag {
+            var returnLog string
+            if logBuf.Len() > 51200{
+                returnLog = string(logBuf.Next(51200))
+            }else {
+                returnLog = logBuf.String()
+                logBuf.Reset() 
+            }
+    		response := &Response{Result:"OK", Ext:"log", Content: returnLog}
+    		respond(conn,response)
+    	} else {
+    		response := &Response{Result:"OK", Ext:"status", Content: strconv.Itoa(appStatus)}
+    		respond(conn,response)
+    	}
+
+        flag = !flag	
 	}
 	
 }
@@ -248,7 +278,7 @@ func HanldeConnect(conn net.Conn) {
 func respond(conn net.Conn, response *Response) {
 	reply, _ := json.Marshal(response)
 
-    if _,err := conn.Write(reply); err != nil{
+    if _,err := conn.Write(append(Itoa(len(reply)),reply...)); err != nil{
     	LOG.Println(err.Error()) //记录错误信息，并关闭连接
     	conn.Close()
         return
@@ -297,7 +327,7 @@ func validateTask()(error) {
     if BatchQua > TotalQua {
         needCount = TotalQua
     }
-    fmt.Println(needCount)
+    //fmt.Println(needCount)
     //needCount表示剩余需要计算的数量
     for i := 0; needCount > 0;  i++ {
         thiscaculte := ModBatch
@@ -322,7 +352,7 @@ func validateTask()(error) {
         needCount = needCount - ModBatch
     }
 
-    fmt.Printf("ThisBatch need bytes : %v \n", needFreeMap)
+    LOG.Printf("ThisBatch need bytes : %v \n", needFreeMap)
 
     for dir,_ := range thisConfig{
         if err := RebuildDir(dir);err != nil{
@@ -334,8 +364,8 @@ func validateTask()(error) {
             return err
         }
         free := stat.Bavail * uint64(stat.Bsize)
-        fmt.Println(free)
-        if needFreeMap[dir] < free - 10*1024*1024*1024 {
+        //fmt.Println(free)
+        if needFreeMap[dir] > free - 10*1024*1024 {
             return errors.New(dir + " 空间不足，现有" + strconv.FormatUint(free,10) + " 需要" + strconv.FormatUint(needFreeMap[dir],10))
         }
     }
@@ -398,12 +428,12 @@ func StartTask() {
         <-complete
 
         t1 := time.Now()
-        fmt.Printf("This Batch cost time  =%v, Begin to Load Data.\n",t1.Sub(t0))
+        LOG.Printf("This Batch cost time  =%v, Begin to Load Data.\n",t1.Sub(t0))
         //LoadData()
     }
 
     LoadendTime := time.Now()
-    fmt.Printf("Total data created and load cost time  =%v\n",LoadendTime.Sub(startTime))
+    LOG.Printf("Total data created and load cost time  =%v\n",LoadendTime.Sub(startTime))
 
 }
 

@@ -34,8 +34,9 @@ type Response struct{
 
 type ConnStat struct{
 	status int
-	lock  sync.Mutex   //使用锁来简单保证一下连接不粘包,统一的sendMessage函数里发送消息前先加锁，函数退出时释放锁，但是仍然无法解决半包问题
-    buf [1024000]byte  //不用每次sendMessage都重新申请内存，但是只有一个的话，多个节点发送时会混乱，保证每个连接有自己的缓冲区
+	lock  sync.Mutex   //使用锁来简单保证一下连接不粘包，简单地发一个消息必须收一个消息,统一的sendMessage函数里发送消息前先加锁，函数退出时释放锁
+    allbuf []byte      //每个连接各自单独的缓冲区
+    buf [102400]byte  //每个连接有自己的缓冲区
 }
 
 var connMap = make(map[net.Conn] *ConnStat)
@@ -117,7 +118,7 @@ func sendMessage(conn net.Conn,message *Message)(*Response,error) {
     connStat.lock.Lock()
     defer connStat.lock.Unlock()
 
-	_,err := conn.Write(send);
+	_,err := conn.Write(append(Itoa(len(send)),send...));
 	if err != nil {   //如果出错，关闭连接
         conn.Close()
         connStat.status = -1
@@ -128,27 +129,55 @@ func sendMessage(conn net.Conn,message *Message)(*Response,error) {
 	conn.SetDeadline(time.Now().Add(time.Duration(5 * time.Second)))
     defer conn.SetDeadline(time.Time{})
 
+    allbuf := connStat.allbuf
+    allbuf = allbuf[:0]   //重置
     buf := connStat.buf
-    //for {
-	   n, err := conn.Read(buf[0:])   //如果客户端一次性写入超过buf长度的字符，没读完的话，再次读取会接着读
+    for {
+	   readLen, err := conn.Read(buf[0:])   //如果客户端一次性写入超过buf长度的字符，没读完的话，再次读取会接着读
 	   if err != nil {   //如果出错，关闭连接
             conn.Close()
 		    connStat.status = -1
             delete(connMap,conn)   //从节点状态map里删除？
 		    return nil,err
-	   }else{
-            //不考虑太复杂的场景
-            LOG.Println(string(buf[:n]))
-            response := new(Response)
+	   }
 
-            if err := json.Unmarshal(buf[:n],&response); err != nil{
-                LOG.Println(err.Error())
-                return nil,nil;
-            }
-
-            return response,nil
+        allbuf = append(allbuf, buf[:readLen]...)  //读取包后的信息
+        //如果小于等于8则肯定不够一个消息，继续读 不接受空消息,由于采用的是一个消息一个消息的处理机制，不用考虑粘包
+        if len(allbuf) <= 8{
+            continue   //小于等于8个继续读
         }
-	//}
+
+        lenstr := string(allbuf[:8])  //前8个
+        //fmt.Println(lenstr)
+        msgLen,err := strconv.Atoi(strings.TrimLeft(lenstr,"0"))   //解析得到消息长度
+        if err != nil {
+            LOG.Println("allbuf content Exception:", string(allbuf))
+            allbuf = allbuf[:0]    //重置
+            continue
+        }
+
+        if len(allbuf) < msgLen + 8 {
+            LOG.Println("消息长度不够，半包了，接着读")
+            continue
+        }
+
+        message := allbuf[8:msgLen+8]
+        //fmt.Println(string(message))
+        allbuf = allbuf[:0]   //重置
+
+        //fmt.Println("allbuf content after read:", string(allbuf))
+
+        //不考虑太复杂的场景
+        LOG.Println(string(message))
+        response := new(Response)
+
+        if err := json.Unmarshal(message,&response); err != nil{
+            LOG.Println(err.Error())
+            return nil,nil;
+        }
+
+        return response,nil
+	}
 }
 
 //管理节点主动检查连接状态,每5s检查一次。 功能不止检查状态，兼职拉取日志。。
@@ -867,7 +896,7 @@ func startBuild(w http.ResponseWriter, r *http.Request) {
     }(err)
 
     //根据配置，根据权重模板切片序列 和 初始化随机串
-    InitModels(dataConfig.Models,500)
+    InitModels(dataConfig.Models,1000)
     if err = InitRand(dataConfig); err != nil{
         return
     }
