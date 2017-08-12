@@ -85,6 +85,7 @@ func main(){
     http.HandleFunc("/saveGlobalVar", saveGlobalVar)
     http.HandleFunc("/startBuild", startBuild)
 
+    http.HandleFunc("/getBuildStatus", getBuildStatus)
     http.HandleFunc("/getLogDetail", getLogDetail)
 
     http.Handle("/", http.FileServer(http.Dir("EasyUI")))
@@ -179,10 +180,8 @@ func CheckStatus(conn net.Conn) {
                 logMap[filename].WriteString(response.Content)
             }else if response != nil && response.Ext == "status"{
                 appStatus,_ := strconv.Atoi(response.Content)
-                if connMap[conn].status != appStatus{   //状态发生更改时，更新状态并做一些其他的事。
-                    connMap[conn].status = appStatus
-                    checkAppNodeStat()
-                }    
+                connMap[conn].status = appStatus
+                checkAppNodeStat()   
             }
     	}
 
@@ -201,7 +200,8 @@ func checkAppNodeStat() {
         }
     }
     //当所有App节点构造导入完毕后，主管理节点启动重建索引和表分析工作
-    if allAppReady{
+    if allAppReady && BuildStatus == 3{
+        BuildStatus = 4
         RebuildIndexAndGather()
     }
  
@@ -841,10 +841,9 @@ func saveGlobalVar(w http.ResponseWriter, r *http.Request) {
 //开始构造
 func startBuild(w http.ResponseWriter, r *http.Request) {
     checkAppNodeStat()
-
-    if BuildStatus != 0{
+    if BuildStatus > 0 && BuildStatus < 5 {
        responseError(w,errors.New("正在处理构造任务中，此次请求忽略"))
-        return 
+       return 
     }
 
     body, _ := ioutil.ReadAll(r.Body)
@@ -855,18 +854,14 @@ func startBuild(w http.ResponseWriter, r *http.Request) {
         rebuildIndexflag = false
     }
 
-    var err error = nil
-    defer func(error){
-        if err != nil{
-            BuildStatus = 0 //说明构造任务未成功下发到AppNode。
-        }else {
-            BuildStatus = 3 //构造任务下发到AppNode了
-        }
-    }(err)
+    if len(connMap) == 0 {
+       responseError(w,errors.New("没有连接任何App节点，此次请求忽略"))
+       return 
+    }
 
     //根据配置，根据权重模板切片序列 和 初始化随机串
-    ModelSlice := InitModels(dataConfig.Models,1000)
-    randStrMap,err := InitRand(dataConfig)
+    InitModels(dataConfig.Models,1000)
+    err := InitRand(dataConfig)
     if err != nil{
         responseError(w,err)
         return
@@ -880,45 +875,51 @@ func startBuild(w http.ResponseWriter, r *http.Request) {
         }
     }
 
+    w.Write([]byte("OK")) //先给浏览器返回响应消息
+    go asyncStartBuild()
+}
+
+//由于校验可能比较耗时，异步发起，界面上立即响应成功开始启动构造任务，具体成功还是失败到节点日志查看
+func asyncStartBuild() {
+
+    var err error = nil
+    defer func(error){
+        if err != nil{
+            BuildStatus = -1 //说明构造任务未成功下发到AppNode。
+            BuildDescMap[-1] = err.Error()
+        }else {
+            BuildStatus = 3 //构造任务下发到AppNode了
+        }
+    }(err)
+
     err = ValidateStartValue()
     if err != nil{
-        responseError(w,err)
+        return
+    }else{
+        BuildStatus = 2
+    }
+
+    if err = syncConfig(ModelSlice,"ModelSlice"); err != nil{
         return
     }
 
-    err = syncConfig(ModelSlice,"ModelSlice")
-    if err != nil{
-        responseError(w,err)
+    if err = syncConfig(randStrMap,"randStrMap"); err != nil{
         return
     }
 
-    err = syncConfig(randStrMap,"randStrMap")
-    if err != nil{
-        responseError(w,err)
+    if err = syncConfig(dataConfig,"dataConfig"); err != nil{
         return
     }
 
-    err = syncConfig(dataConfig,"dataConfig")
-    if err != nil{
-        responseError(w,err)
+    if err = syncConfig(LoadConfig,"LoadConfig"); err != nil{
         return
     }
 
-    err = syncConfig(LoadConfig,"LoadConfig")
-    if err != nil{
-        responseError(w,err)
+    if err = syncConfig(models,"models"); err != nil{
         return
     }
 
-    err = syncConfig(models,"models")
-    if err != nil{
-        responseError(w,err)
-        return
-    }
-
-    err = syncConfig(maxTemp,"maxTemp")
-    if err != nil{
-        responseError(w,err)
+    if err = syncConfig(maxTemp,"maxTemp"); err != nil{
         return
     }
 
@@ -926,28 +927,38 @@ func startBuild(w http.ResponseWriter, r *http.Request) {
 
     for conn,ConnStat := range connMap{
         if ConnStat.status < 0{
-            responseError(w, errors.New(conn.RemoteAddr().String() + " status invalid."))
+            err = errors.New(conn.RemoteAddr().String() + " status invalid.")
             return
         }
         response,err := sendMessage(conn, message)
         if err != nil{   //连接异常
-            responseError(w,err)
             return
         }else if (response == nil){
             err = errors.New("解析" + conn.RemoteAddr().String() + "的响应消息异常")
-            responseError(w,err)
             return
         }else if(response.Result != "OK"){
             err = errors.New(conn.RemoteAddr().String() + "返回异常：" + response.Content)
-            responseError(w,err)
             return
         }
     }
-    
-    w.Write([]byte("OK"))
 }
 
-//保存Vardefine的配置
+var BuildDescMap = map[int] string{
+        0: "初始状态",
+        1: "冲突校验中",
+        2: "冲突校验完毕",
+        3: "构造任务下发成功",
+        4: "App节点构造导入完毕，开始表分析",
+        5: "构造任务完毕",
+        -1: "失败原因,具体设置-1状态的地方修改具体原因信息",
+    }
+//获取管理节点状态
+func getBuildStatus(w http.ResponseWriter, r *http.Request) {
+
+    w.Write([]byte(BuildDescMap[BuildStatus]))
+}
+
+//获取节点日志
 func getLogDetail(w http.ResponseWriter, r *http.Request) {
 
     LOG.Println(r)
@@ -983,13 +994,16 @@ func getLogDetail(w http.ResponseWriter, r *http.Request) {
 
 var rs = rand.New(rand.NewSource(time.Now().UnixNano()))
 
+var ModelSlice []string
+var randStrMap map[string]*RandStruct
+
 type RandStruct struct{
     Randslice []string
     Index int
 }
 
 //根据模板比重，初始化随机序列,n的数量不能太小，比如n=5,只取了5个随机数，是不能得到符合权重的随机序列的
-func InitModels(Models map[string]int, n int) ( ModelSlice []string){
+func InitModels(Models map[string]int, n int) {
     var sum = 0
 
     //range map的时候是随机的。所以另外声明两个Slice保证有序
@@ -1026,37 +1040,35 @@ func InitModels(Models map[string]int, n int) ( ModelSlice []string){
             }
         }
     }
-
-    return ModelSlice
 }
 
 //randConfig:初始化多少（比如常见姓名是500个，初始化500个姓名，所有姓名字符串从这500个里面取），最小长度，最大长度，模式(0:小写字母,1:大写字母,2:数字,3:字母+数字,4:大小写字母,5:汉字,6:大写开头的字母)
-func InitRand(dataConfig *DataConfig) (map[string]*RandStruct,error){
+func InitRand(dataConfig *DataConfig) (error){
     randConfig := dataConfig.RandConfMap
     EnumMap := dataConfig.EnumlistMap
 
-    var randValueMap = make(map[string]*RandStruct)
+    randStrMap = make(map[string]*RandStruct)
 
     for name,config := range randConfig{
         initsize,_ := strconv.Atoi(config[0])
-        randValueMap[name]= &RandStruct{make([]string,initsize,initsize),-1};
+        randStrMap[name]= &RandStruct{make([]string,initsize,initsize),-1};
         if len(config) == 4 {
             for i:=0;i< initsize; i++{
-                randValueMap[name].Randslice[i] = RandString(config[1],config[2],config[3]) 
+                randStrMap[name].Randslice[i] = RandString(config[1],config[2],config[3]) 
             }
         }else if len(config) == 2{
             for i:=0;i< initsize; i++{
                 Enumlist,ok := EnumMap[config[1]]
                 if !ok{
-                    return nil, errors.New("枚举值列表" + config[1] + "未配置枚举值");
+                    return errors.New("枚举值列表" + config[1] + "未配置枚举值");
                 }
 
-                randValueMap[name].Randslice[i] = Enumlist[rs.Intn( len(Enumlist) )] 
+                randStrMap[name].Randslice[i] = Enumlist[rs.Intn( len(Enumlist) )] 
             }
         }
     }
 
-    return randValueMap,nil
+    return nil
 }
 
 //由于是采用的字符串相加的方式，效率不高，此工具采用的是事先初始化好一个不太长的随机串数组，需要用时从数组里循环取
@@ -1109,15 +1121,15 @@ func syncConfig(v interface{}, configname string)(error){
 
     for conn,ConnStat := range connMap{
         if ConnStat.status < 0 {
-            return errors.New(conn.RemoteAddr().String() + " status not OK, con't syncConfig.")
+            return errors.New("同步"+configname+"时"+conn.RemoteAddr().String() + "状态异常, 无法同步.")
         }
         response,err := sendMessage(conn, message)
         if err != nil{ //说明连接异常
             return err
         }else if (response == nil){
-            return errors.New("解析" + conn.RemoteAddr().String() + "的响应消息异常")
+            return errors.New("同步"+configname+"时解析" + conn.RemoteAddr().String() + "的响应消息异常")
         }else if(response.Result != "OK"){
-            return errors.New(conn.RemoteAddr().String() + "返回异常：" + response.Content)
+            return errors.New("同步"+configname+"时"+conn.RemoteAddr().String() + "返回异常：" + response.Content)
         }
     }
     
@@ -1209,7 +1221,7 @@ var BuildStatus = 0
 //根据要造哪些表，拼接关键根值，查询数据库，如果有冲突则提示并终止
 func ValidateStartValue()( error ){
     BuildStatus = 1
-    defer func(){BuildStatus = 2}()
+    
     var ValidateString = `select 'ResultStart:'||count(*)||':ResultEnd' from $username.$tablename r where r.$column  between '$from' and '$to';`
     
     Startvalue,TotalQua := dataConfig.GlobalVar["Startvalue"],dataConfig.GlobalVar["TotalQua"]
@@ -1299,13 +1311,10 @@ func RebuildIndexAndGather(){
         }
     }
 
-    BuildStatus = 0
+    BuildStatus = 5
 }
 
-/*
-    tools 工具类 
-*/
-
+//---------------------------------//
 //重建目录
 func RebuildDir(dir string)(error){
     if err := os.RemoveAll(dir);err != nil{

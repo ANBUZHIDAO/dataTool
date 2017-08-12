@@ -13,12 +13,31 @@
 
 <div id="app">
 
+  <div class="panel-header panel-title" style="width: 99%">管理节点</div>
+  <table class="datagrid-body datagrid-btable" style="width: 60%;border:1px solid #ABABAB;">
+    <tbody>
+      <tr class="datagrid-row" >
+        <td style="width:40%">
+          <div style="text-align:center;height:auto;" class="datagrid-cell"> {{ BuildDesc }} </div>
+        </td>
+        <td style="width:60%">
+          <div style="text-align:center;height:auto;" class="datagrid-cell">
+            <button class="l-btn l-btn-small" v-on:click="CheckManNodeLog()">
+              <span class="l-btn-left"> <span class="l-btn-text">查看日志</span></span>
+            </button>
+          </div>
+        </td>
+      </tr>
+
+    </tbody>
+  </table>
+
   <div class="panel-header panel-title" style="width: 99%">应用节点</div>
   <table class="datagrid-header datagrid-htable" style="width: 60%" border="0">
     <tbody>
       <tr class="datagrid-header-row">
         <td style="width:20%">
-          <div class="datagrid-cell " > 节点 </div>
+          <div class="datagrid-cell" > 节点 </div>
         </td>
         <td style="width:20%">
           <div class="datagrid-cell" > 状态 </div>
@@ -71,6 +90,7 @@ vm = new Vue({
         "2": "构造数据中",
         "3": "开始导入"
     },
+    BuildDesc:"稍等，正在获取状态",
     logdetail:"",
   },
   created : function (){
@@ -83,7 +103,18 @@ vm = new Vue({
     } else {
       $.messager.alert("错误", "getNodeStatus Exception：" + Response.responseText,"error");
     }
+    
+  },
+  mounted : function(){
+    console.log("mounted")
+    var self = this; 
 
+    //Ajax定时访问服务端，不断获取数据 ，这里是5秒请求一次。
+    setInterval(function(){
+      Response = $.ajax({ url:"/getBuildStatus",async:false, dataType:'text',type:"GET"} )
+      console.log(JSON.stringify(Response));
+      self.BuildDesc = Response.responseText
+    },5000);
   },
   methods:{
     ChangeClicked(NodeConfig){
@@ -104,7 +135,6 @@ vm = new Vue({
       } else {
         $.messager.alert("错误", "getLogDetail Exception：" + Response.responseText,"error");
       }
-
     }
 
   }
