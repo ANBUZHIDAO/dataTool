@@ -184,7 +184,6 @@ func HanldeConnect(conn net.Conn) {
 
     		if receive.Action == "startTask"{   
     			LOG.Println("Go to startTask.")
-    			//先进行一系列校验(检查空间是否足够--待添加)，通过之后才真正起协程造数据，然后通知管理节点
                 if appStatus == 1{
                     go StartTask()
 
@@ -194,9 +193,18 @@ func HanldeConnect(conn net.Conn) {
                     response := &Response{Result:"NOK", Ext:"log", Content: "An Task still run,cannot run another"}
                     respond(conn,response) 
                 }
-
                 continue	
     		}
+
+            if receive.Action == "validateTask"{   
+                LOG.Println("Go to validateTask.")
+                //检查空间是否足够
+                validateTask()
+
+                response := &Response{Result:"OK", Ext:"validateTask", Content: "validateTask"}
+                respond(conn,response) 
+                continue    
+            }
 
     		if receive.Action == "syncConfig"{
     			//LOG.Println(receive.Content)
@@ -268,6 +276,52 @@ func receiveConfig(Ext string, Content string) (error) {
         return err
     default: return nil
 	}
+}
+
+//校验空间是否足够
+func validateTask()(error) {
+    LoadGlobaleVar(dataConfig.GlobalVar)
+
+    for _,NodeConfig := range dataConfig.NodeList{
+        if ListenAddr == NodeConfig.NodeAddr{
+            thisConfig = NodeConfig.Config
+        }
+    }
+
+    needFreeMap := make(map[string]uint64)  //每个目录需要的大小
+    var needCount = BatchQua   //需要校验的数量--一个批次的，如果一个批次的大于总数则计算总数
+    if BatchQua > TotalQua {
+        needCount = TotalQua
+    }
+    fmt.Println(needCount)
+    //needCount表示剩余需要计算的数量
+    for i := 0; needCount > 0;  i++ {
+        thiscaculte := ModBatch
+        if needCount - ModBatch < 0{
+            thiscaculte = needCount
+        }
+
+        if i >= len(ModelSlice){
+            i = 0
+        }
+        thisModel := ModelSlice[i]
+
+        for dir,tables := range thisConfig{
+            for _,table := range tables{
+                template,ok := models[thisModel][table]
+                if ok {
+                    needFreeMap[dir] = uint64(template.Length * thiscaculte) + needFreeMap[dir]
+                }  
+            }
+        }
+        
+        needCount = needCount - ModBatch
+    }
+
+    fmt.Printf("ThisBatch need bytes : %v \n", needFreeMap)
+
+    return nil
+
 }
 
 

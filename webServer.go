@@ -859,44 +859,24 @@ func startBuild(w http.ResponseWriter, r *http.Request) {
        return 
     }
 
+    var err error = nil
+    defer func(error){
+        if err != nil{
+            responseError(w,err)
+        }
+    }(err)
+
     //根据配置，根据权重模板切片序列 和 初始化随机串
     InitModels(dataConfig.Models,1000)
-    err := InitRand(dataConfig)
-    if err != nil{
-        responseError(w,err)
+    if err = InitRand(dataConfig); err != nil{
         return
     }
 
     for modeldir,_ := range dataConfig.Models{
-        err := ParseDir(modeldir)     //解析模板
+        err = ParseDir(modeldir)     //解析模板
         if err != nil {
-            responseError(w,err)
             return
         }
-    }
-
-    w.Write([]byte("OK")) //先给浏览器返回响应消息
-    go asyncStartBuild()
-}
-
-//由于校验可能比较耗时，异步发起，界面上立即响应成功开始启动构造任务，具体成功还是失败到节点日志查看
-func asyncStartBuild() {
-
-    var err error = nil
-    defer func(error){
-        if err != nil{
-            BuildStatus = -1 //说明构造任务未成功下发到AppNode。
-            BuildDescMap[-1] = err.Error()
-        }else {
-            BuildStatus = 3 //构造任务下发到AppNode了
-        }
-    }(err)
-
-    err = ValidateStartValue()
-    if err != nil{
-        return
-    }else{
-        BuildStatus = 2
     }
 
     if err = syncConfig(ModelSlice,"ModelSlice"); err != nil{
@@ -923,24 +903,36 @@ func asyncStartBuild() {
         return
     }
 
-    message := &Message{Action:"startTask", Ext:"startTask", Content:"startTask" }
-
-    for conn,ConnStat := range connMap{
-        if ConnStat.status < 0{
-            err = errors.New(conn.RemoteAddr().String() + " status invalid.")
-            return
-        }
-        response,err := sendMessage(conn, message)
-        if err != nil{   //连接异常
-            return
-        }else if (response == nil){
-            err = errors.New("解析" + conn.RemoteAddr().String() + "的响应消息异常")
-            return
-        }else if(response.Result != "OK"){
-            err = errors.New(conn.RemoteAddr().String() + "返回异常：" + response.Content)
-            return
-        }
+    err = sendCommand2App("validateTask","validateTask","validateTask")
+    if err != nil {
+        return
     }
+
+    w.Write([]byte("OK")) //先给浏览器返回响应消息
+    go asyncStartBuild()
+}
+
+//由于校验可能比较耗时，异步发起，界面上立即响应成功开始启动构造任务，具体成功还是失败到节点日志查看
+func asyncStartBuild() {
+
+    var err error = nil
+    defer func(error){
+        if err != nil{
+            BuildStatus = -1 //说明构造任务未成功下发到AppNode。
+            BuildDescMap[-1] = err.Error()
+        }else {
+            BuildStatus = 3 //构造任务下发到AppNode了
+        }
+    }(err)
+
+    err = ValidateStartValue()
+    if err != nil{
+        return
+    }else{
+        BuildStatus = 2
+    }
+
+    err = sendCommand2App("startTask","startTask","startTask")
 }
 
 var BuildDescMap = map[int] string{
@@ -954,7 +946,7 @@ var BuildDescMap = map[int] string{
     }
 //获取管理节点状态
 func getBuildStatus(w http.ResponseWriter, r *http.Request) {
-
+    LOG.Println("当前状态为：" + BuildDescMap[BuildStatus])
     w.Write([]byte(BuildDescMap[BuildStatus]))
 }
 
@@ -1116,23 +1108,28 @@ func RandString(min string,max string, mod string) string{
 //同步配置到App应用节点
 func syncConfig(v interface{}, configname string)(error){
     jsonData,_ := json.MarshalIndent(v, ""," ")
+    return sendCommand2App("syncConfig",configname,string(jsonData))
+}
 
-    message := &Message{Action:"syncConfig", Ext:configname, Content:string(jsonData) }
+//发送指令到App节点
+func sendCommand2App(action, ext, content string)(error){
+
+    message := &Message{Action:action, Ext:ext, Content:content }
 
     for conn,ConnStat := range connMap{
         if ConnStat.status < 0 {
-            return errors.New("同步"+configname+"时"+conn.RemoteAddr().String() + "状态异常, 无法同步.")
+            return errors.New(conn.RemoteAddr().String() + "状态异常, 无法执行" + action)
         }
         response,err := sendMessage(conn, message)
         if err != nil{ //说明连接异常
-            return err
+            return errors.New(conn.RemoteAddr().String() + " " + action + "：" + ext + "异常：" + err.Error())
         }else if (response == nil){
-            return errors.New("同步"+configname+"时解析" + conn.RemoteAddr().String() + "的响应消息异常")
+            return errors.New(conn.RemoteAddr().String() + " " + action + "：" + ext + "异常：解析响应消息错误。" )
         }else if(response.Result != "OK"){
-            return errors.New("同步"+configname+"时"+conn.RemoteAddr().String() + "返回异常：" + response.Content)
+            return errors.New(conn.RemoteAddr().String() + " " + action + "：" + ext + "异常：" + response.Content)
         }
     }
-    
+
     return nil
 }
 
@@ -1201,7 +1198,7 @@ func parseTemplate(tempStr string)(*MyTemplate){
 
             result.Strslice = append(result.Strslice,varName)
             result.Repslice = append(result.Repslice,repMethod)
-            result.Length = result.Length + 8
+            result.Length = result.Length + Len  // 由于存在随机字符串的原因，Length并不能准确计算出模板会有多长，请注意。
 
             result.Strslice = append(result.Strslice,v[strings.Index(v,"}")+1:])
             result.Repslice = append(result.Repslice,0)
@@ -1209,9 +1206,8 @@ func parseTemplate(tempStr string)(*MyTemplate){
         }
     }
 
-    fmt.Printf("strSlice =%v\n",result.Strslice)
-    fmt.Printf("repSlice =%v\n",result.Repslice)
-    result.Length = result.Length + 200   // 由于Length并不能准确计算出模板会有多长，因此将计算出的值增加200，以避免出错。如果出现那种造200以上的随机字符串活枚举字符串之类的，我也只能无语了，改大这个值吧。
+    LOG.Println("strSlice =%v\n",result.Strslice)
+    LOG.Println("repSlice =%v\n",result.Repslice)
     LOG.Println("MyTemplate Length: " + strconv.Itoa(result.Length))
 
     return result
