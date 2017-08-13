@@ -1,0 +1,6 @@
+total 16
+drwxr-xr-x 2 oracle oinstall 4096 Jul 29 21:59 pospaid
+drwxr-xr-x 2 oracle oinstall 4096 Jul 29 21:58 prepaid1
+drwxr-xr-x 2 oracle oinstall 4096 Jul 29 21:59 prepaid2
+drwxr-xr-x 2 oracle oinstall 4096 Jul 29 21:59 prepaid3
+-rw-r--r-- 1 oracle oinstall    0 Jul 29 23:08 test.txt

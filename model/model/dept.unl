@@ -1,0 +1,2 @@
+deptno,dname,loc,
+SV6002000${dept.deptno0},${dept.dname},${dept.loc},

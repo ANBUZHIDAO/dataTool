@@ -18,8 +18,26 @@ dataTool
 
 ## 1、dataTool系统简介
 节点管理
-
-
+![image](https://github.com/ANBUZHIDAO/dataTool/blob/TwoNode/picture/dataTool%E7%B3%BB%E7%BB%9F.png)
+```
+管理节点状态：
+        0: "初始状态",
+        1: "冲突校验中",
+        2: "冲突校验完毕",
+        3: "构造任务下发成功",
+        4: "App节点构造导入完毕，开始表分析",  ---- 心跳检测时，会更新appNode的节点状态
+        5: "构造任务完毕",                ----- 表分析失败可以从界面获取表分析SQL，修改后在PLSQL中手工执行
+        -1: "失败原因,具体设置-1状态的地方修改具体原因信息"
+应用节点状态：
+        0: 初始状态，接收到连接后，状态改为1，
+        1: 正常连接状态
+        2：构造数据中
+        3：批次构造完成，开始导入导入完成后改为2
+状态不为0时，接收到新的连接请求时，如果最后接收到管理节点的消息未超过11秒，则认为已经有连接存在，拒绝新的连接        
+状态不为1时，拒绝接受另一个新的构造任务
+状态为1时收到启动作业的请求，检验通过后，状态改为2
+全部批次完毕后重新改为1
+```
 
 文件构造主流程简介
 
@@ -125,25 +143,15 @@ Models      配置多个不同类型的模板，Weight是模板所占比重
 
 ## 3、使用
 
-分为3步
-```
-1、 CSV格式源数据文件  
-2、 go run genModel.go   ----  产生模板
-3、 go run hello.go -s 1000 -t 5   ----  生成数据并导入   -s startvalue, 变量起始值  -t TotalQua 需要造的记录数
-```
+导出，此工具目前只适用于Oracle。可以修改支持MySQL
 
-CSV原始表数据文件，使用者自己想怎么搞了。。。  
-针对Oracle数据库，提供了 exportSQL.sql 使用 UTL_FILE 导出 CSV文件到某个目录。
 
 ```
 golang没有官方的Oracle 数据库连接驱动，而且现有的使用OCI的方式配置过于麻烦。 本工具只是个造数据的工具。。
 采用的方式是执行sqlplus来执行Oracle SQL语句。
-在util/tools.go 中有ExecSQLPlus函数。返回标准输出。
+有ExecSQLPlus函数，执行SQL语句返回标准输出。
 
-dataHrlp.go是调用ExecSQLPlus函数执行exportSQL.sql的帮助工具。使之不必通过其他客户端执行。
-当然也可以选择通过PLSQL中执行，来导出CSV文件。
-
-在hello.go中执行检测冲突的语句时，使用前后加特征字符串 ResultStart:'||count(*)||':ResultEnd 的方式，
+在主节点中有执行检测冲突的语句时，使用前后加特征字符串 ResultStart:'||count(*)||':ResultEnd 的方式，
 然后截取中间的部分获得执行结果。
 
 ```
@@ -167,12 +175,12 @@ source/emp.unl
 ```
 model/dept.unl
         deptno,dname,loc,
-        SV6002000${deptno},${dname},NEW YORK,
+        SV6002000${dept.deptno0},${dept.dname},${dept.loc},
 model/emp.unl        
         empno,ename,job,mgr,hiredate,sal,comm,deptno,
-        1000123${empno},${ename},MANAGER,1000133${empno1},1981-06-09 00:00:00,2450,,SV6002000${deptno},
-        1000133${empno1},${ename},PRESIDENT,,1981-11-17 00:00:00,5000,,SV6002000${deptno},
-        1000143${empno2},${ename},CLERK,1000123${empno},1982-01-23 00:00:00,1300,,SV6002000${deptno},
+        1000123${emp.empno0},${emp.ename},MANAGER,1000133${emp.empno1},1981-06-09 00:00:00,2450,,SV6002000${dept.deptno0},
+        1000133${emp.empno1},${emp.ename},PRESIDENT,,1981-11-17 00:00:00,5000,,SV6002000${dept.deptno0},
+        1000143${emp.empno2},${emp.ename},CLERK,1000123${emp.empno0},1982-01-23 00:00:00,1300,,SV6002000${dept.deptno0},
 ```
 
 主要的变化是deptno根据vardefine.json里配置的变量变为 SV6002000${deptno}。  
@@ -185,9 +193,9 @@ model/emp.unl
 ```
 注意这里可能存在BUG，因为模板的产生过程中没有维护一个表字段的关联关系，
 而是比如deptno是10，产生模板的时候会将其他表如emp表中值是10的变为SV6002000${deptno}
-值长度越小，越容易出现这种问题，所以添加了一个WARN，长度小于4的，加了提示 WARN:Please check "variable" manually,maybe it's Wrong
+值长度越小，越容易出现这种问题，添加了一个WARN日志，长度小于4的，加了提示 WARN:Please check "variable" manually,maybe it's Wrong
 
-维护表字段的关联关系太麻烦，而且记录数不一样，表很多的时候太难维护。比如我使用过程中50多张表需要构造，其中的关联关系很难维护。
+维护表字段的关联关系太麻烦，而且记录数不一样，表很多的时候太难维护。比如我使用过程中50多张表需要构造，其中的关联关系很难维护。 通过这种方式可以自动寻找关联关系。
 ```
 
 

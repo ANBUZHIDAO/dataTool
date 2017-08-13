@@ -1,5 +1,0 @@
-deptno,dname,loc
-SV6002000${deptno},model2,NEW YORK
-SV6002010${deptno1},model2,DALLAS
-SV6002020${deptno2},model2,CHICAGO
-SV6002030${deptno3},model2,BOSTON
