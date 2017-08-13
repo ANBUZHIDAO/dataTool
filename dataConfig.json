@@ -1,52 +1,83 @@
 {
-    "GlobalVar": {
-        "BatchQua": 200000,
-        "ModBatch": 100,
-        "TotalQua": 100,
-        "Startvalue": 1000
-    },
-    "ColumnMap": {
-        "inf_subscriber":["sub_id","phone_number","firstname"],
-        "dept":["deptno","dname","loc"],
-        "emp":["empno","ename"]
-    },
-    "ExcludeMap":{
-        "aliasname":true,
-        "columnname":true
-    },
-    "RandConfMap":{
-            "emp.ename":["100","2","3","default"],
-            "dept.dname":["1000","5","9","chinese"],
-            "dept.loc":["100","province"]
-    },
-    "EnumlistMap":{
-            "province":["Henan","Henan","Shandong","Shandong","Jiangsu","Hubei"]
-    },
-    "Models":{
-        "prepaid1": 1,
-        "prepaid2": 1,
-        "prepaid3": 1
-    },
-    "NodeList":
-      [
-        {
-          "NodeAddr":"192.168.1.110:4412",
-          "Config" :{
-            "out": [],
-            "out2": []
-          }
-        },
-        {
-          "NodeAddr":"192.168.1.111:4412",
-          "Config" :{
-          "/opt/out": ["emp24","inf_subscriber"],
-          "/home/oracle/out": ["emp25","inf_dept"]
-          }
-        },
-        {
-          "NodeAddr":"192.168.1.112:4412",
-          "Config" :{
-          }
-        }
-      ]
+ "GlobalVar": {
+  "BatchQua": 200000,
+  "ModBatch": 100,
+  "Startvalue": 1000,
+  "TotalQua": 100
+ },
+ "ColumnMap": {
+  "dept": [
+   "deptno",
+   "dname",
+   "loc"
+  ],
+  "emp": [
+   "empno",
+   "ename"
+  ],
+  "inf_subscriber": [
+   "sub_id",
+   "phone_number",
+   "firstname"
+  ]
+ },
+ "ExcludeMap": {
+  "aliasname": true,
+  "columnname": true
+ },
+ "RandConfMap": {
+  "dept.dname": [
+   "1000",
+   "5",
+   "9",
+   "chinese"
+  ],
+  "dept.loc": [
+   "100",
+   "province"
+  ],
+  "emp.ename": [
+   "100",
+   "2",
+   "3",
+   "default"
+  ]
+ },
+ "EnumlistMap": {
+  "province": [
+   "Henan",
+   "Henan",
+   "Shandong",
+   "Shandong",
+   "Jiangsu",
+   "Hubei"
+  ]
+ },
+ "Models": {
+  "prepaid1": 1,
+  "prepaid2": 1,
+  "prepaid3": 1
+ },
+ "NodeList": [
+  {
+   "NodeAddr": "192.168.1.110:4412",
+   "Config": {
+    "out": [],
+    "out2": []
+   }
+  },
+  {
+   "NodeAddr": "192.168.1.111:4412",
+   "Config": {
+    "/home/oracle/out": [
+     "emp25",
+     "inf_dept"
+    ],
+    "/opt/out": [
+     "emp24",
+     "inf_subscriber"
+    ]
+   }
+  }
+ ]
 }

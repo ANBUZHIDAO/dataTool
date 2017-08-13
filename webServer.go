@@ -62,6 +62,7 @@ func main(){
     http.HandleFunc("/saveNodeList", saveNodeList) 
 
     http.HandleFunc("/getLoadConfig", getLoadConfig)
+    http.HandleFunc("/testConnect", testConnect)
     http.HandleFunc("/saveLoadConfig", saveLoadConfig)
 
     http.HandleFunc("/getVardefine", getVardefine)
@@ -327,7 +328,7 @@ func ConnectNode(w http.ResponseWriter, r *http.Request) {
 func removeConnect(w http.ResponseWriter, r *http.Request) {
     LOG.Println(r)
     body, _ := ioutil.ReadAll(r.Body)
-    LOG.Println(body)
+    LOG.Println(string(body))
 
     removeAddr := string(body)
 
@@ -345,6 +346,50 @@ func removeConnect(w http.ResponseWriter, r *http.Request) {
 func getLoadConfig(w http.ResponseWriter, r *http.Request) {
     result,_ := json.Marshal(LoadConfig)
     w.Write(result)
+}
+
+//测试连接
+func testConnect(w http.ResponseWriter, r *http.Request ){
+    LOG.Println(r)
+    body, _ := ioutil.ReadAll(r.Body)
+    connectString := string(body)
+    LOG.Println(connectString)
+
+    var err error = nil
+    defer func(error){
+        if err != nil{
+            responseError(w,err)
+        }
+    }(err)
+
+    
+    cmd := exec.Command("sqlplus",connectString)
+    stdout,err := cmd.StdoutPipe()
+    if err != nil {
+        return 
+    }
+
+    err = cmd.Start()
+    if err != nil {
+        return 
+    }
+
+    content, err := ioutil.ReadAll(stdout)
+    if err != nil{
+        return
+    }
+
+    result := string(content)
+    LOG.Println("result:", result )
+
+    if strings.Index(result,"ERROR:") == -1 {
+        w.Write([]byte("OK"))
+        return
+    }
+
+    resultReg := regexp.MustCompile(`ORA-\d+:.*`)
+    output := resultReg.FindString(result)
+    err = errors.New(output)
 }
 
 //保存loadConfig的配置
