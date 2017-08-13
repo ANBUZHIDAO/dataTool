@@ -91,7 +91,7 @@ bufferToFile根据接收到的endFlag数量判断是否结束，如果已全部�
 ![image](https://github.com/ANBUZHIDAO/dataTool/blob/TwoNode/picture/%E6%97%A5%E5%BF%97%E6%9F%A5%E7%9C%8B.png)
 
 
-## 2、后台配置文件简介
+## 4、后台配置文件简介
 主要是3个配置文件，loadConfig.json， dataConfig.json,  vardefine.json  
 
 
@@ -181,7 +181,7 @@ Models      配置多个不同类型的模板，Weight是模板所占比重
 配置变量值，第二个值是针对多行记录的。
 如果有多行记录，则默认在当前配置值的数字值上加上第二个值作为新变量。
 
-## 3、使用限制
+## 5、使用限制
 
 导出，此工具目前只适用于Oracle。可以修改支持MySQL，我用不到，不做了
 
@@ -197,7 +197,7 @@ golang没有官方的Oracle 数据库连接驱动，而且现有的使用OCI的�
 ```
 
 
-## 4、模板的产生
+## 6、模板的产生
 genModel.go产生模板时：
 原始内容：
 ```
@@ -248,7 +248,7 @@ model/emp.unl
 
 
 
-## 5、SQLLoader导入
+## 7、SQLLoader导入
 
 当前是默认起6个协程执行SqlLoader并行导入，可调整LoadData函数中 var RoutineNumber = 6的值增大活调小并行数量  
 如下面是测试时的一个最终的默认输出（未启动数据库实例，所以 exit status 1）
