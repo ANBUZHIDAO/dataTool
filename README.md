@@ -8,17 +8,24 @@ dataTool
 
     实际使用中造文件的速度取决于磁盘的性能。 本人使用过程中，服务器上磁盘性能较好，
     而且配置了分别输出到两个磁盘上，总的速度达到了 500M/s以上。
+    
     实际上最耗时的步骤是在导入数据到数据库时，MySQL我没有使用过，
-    但是Oracle的SqlLoader的速度真的不怎么快，1000多万数据，几十张表，共500多G的数据，
-    构造只需要不到20分钟，导入Oracle数据库并重建索引，做完表分析需要几个小时。
+    Oracle的SQLLoader导入，以及导入后重建索引是比较耗时的地方。
 
-    之前未并行SqlLoader导入的情况下，1.8T左右的数据文件，分6个批次导入，构造+导入+重建索引+表分析耗时16个小时左右。
+    这是第二个版本。最大的变化是提供了前台界面，使用多节点一起构造数据。
+    实际性能测试基本使用RAC数据库，为充分利用RAC双机的性能和磁盘空间，将构造任务下发到2个节点上去。
+    
 
-## 1、文件构造主流程简介
+## 1、dataTool系统简介
+节点管理
+
+
+
+文件构造主流程简介
 
 ![image](https://github.com/ANBUZHIDAO/dataTool/blob/master/picture/dataTool%E6%B5%81%E7%A8%8B%E5%9B%BE%E8%A7%A3.JPG)
-
-主流程在hello.go中，使用了Go语言的goroutine。
+```
+主流程在appNode.go的StartTask中，使用Go语言的goroutine。
 初始化几个Bufferstruct，在管道和线程之间组成一个循环圈。  
 目前Bufferstruct是4个，因为我个人使用过程中，最多也就2个不同的物理磁盘，只启动过2个buildBytes线程。 4个Bufferstruct足够了。  
 Bufferstruct中的buf是byte切片，分配足够的内存，避免运行过程中内存分配,避免GC。  
@@ -32,9 +39,18 @@ buildBytes协程可根据配置启动多个，bufferToFile只有1个。
 buildBytes构造完后将Bufferstruct.endFlag置为true，  
 bufferToFile根据接收到的endFlag数量判断是否结束，如果已全部结束，写入一个消息到complete管道，来通知main主程序。
 不在buildBytes构造完就通知主程序是有可能这时候还没写到文件。
+```
 
+## 2、使用
 
-## 2、配置
+分为3步
+```
+1、 将工具包上传到RAC节点上去  
+2、 go run webServer.go   ----  其中一个节点上启动，作为管理节点
+3、 go run appNode.go     ----  两个RAC节点都执行，作为应用节点
+```
+
+## 2、后台配置文件简介
 主要是3个配置文件，loadConfig.json， dataConfig.json,  vardefine.json  
 
 ### loadConfig.json
@@ -43,7 +59,6 @@ bufferToFile根据接收到的endFlag数量判断是否结束，如果已全部�
   {
     "Username": "scott",
     "Password": "oracle",
-    "OutputDir": "outdir",
     "TableList": [
       "emp",
       "dept"
@@ -52,15 +67,13 @@ bufferToFile根据接收到的endFlag数量判断是否结束，如果已全部�
   {
     "Username": "testuser",
     "Password": "oracle",
-    "OutputDir": "",
     "TableList": [
       "inf_subscriber"
     ]
   }
 ]
 ```
-很简单，一目了然就是用户名，密码，输出目录，表名  
-输出目录可以为""，此情况下默认输出到heelo.go当前目录下的out目录。
+很简单，一目了然就是用户名，密码，表名  
 
 ### dataConfig.json
 ```json
