@@ -68,8 +68,32 @@ bufferToFile根据接收到的endFlag数量判断是否结束，如果已全部�
 3、 go run appNode.go     ----  两个RAC节点都执行，作为应用节点
 ```
 
+## 3、配置界面说明
+用户配置
+![image](https://github.com/ANBUZHIDAO/dataTool/blob/TwoNode/picture/%E7%94%A8%E6%88%B7%E9%85%8D%E7%BD%AE.png)
+
+表列配置
+![image](https://github.com/ANBUZHIDAO/dataTool/blob/TwoNode/picture/%E8%A1%A8%E5%88%97%E9%85%8D%E7%BD%AE.png)
+
+导出数据
+![image](https://github.com/ANBUZHIDAO/dataTool/blob/TwoNode/picture/export.png)
+
+模板配置
+![image](https://github.com/ANBUZHIDAO/dataTool/blob/TwoNode/picture/%E6%A8%A1%E6%9D%BF%E9%85%8D%E7%BD%AE.png)
+
+节点配置
+![image](https://github.com/ANBUZHIDAO/dataTool/blob/TwoNode/picture/%E8%8A%82%E7%82%B9%E9%85%8D%E7%BD%AE.png)
+
+启动构造
+![image](https://github.com/ANBUZHIDAO/dataTool/blob/TwoNode/picture/%E5%90%AF%E5%8A%A8%E6%9E%84%E9%80%A0.png)
+
+查看日志
+![image](https://github.com/ANBUZHIDAO/dataTool/blob/TwoNode/picture/%E6%97%A5%E5%BF%97%E6%9F%A5%E7%9C%8B.png)
+
+
 ## 2、后台配置文件简介
 主要是3个配置文件，loadConfig.json， dataConfig.json,  vardefine.json  
+
 
 ### loadConfig.json
 ```json
@@ -96,35 +120,49 @@ bufferToFile根据接收到的endFlag数量判断是否结束，如果已全部�
 ### dataConfig.json
 ```json
 {
+    "GlobalVar": {
+        "BatchQua": 200000,
+        "ModBatch": 100,
+        "Startvalue": 1000,
+        "TotalQua": 100
+    },
     "ColumnMap": {
-        "inf_subscriber":["sub_id","phone_number","firstname"],
-        "dept":["deptno","dname","loc"],
-        "emp":["empno","ename"]
+        "dept": ["deptno", "dname", "loc"],
+        "emp": ["empno", "ename"],
+        "inf_subscriber": ["sub_id", "phone_number", "firstname"]
     },
-    "AliasMap": {
-        "tablename.columnname": "aliasname"
+    "ExcludeMap": {
+        "aliasname": true,
+        "columnname": true
     },
-    "ExcludeMap":{
-        "aliasname":true,
-        "columnname":true
+    "RandConfMap": {
+        "dept.dname": ["1000", "5", "9", "chinese"],
+        "dept.loc": ["100", "province"],
+        "emp.ename": ["100", "2", "3", "default"]
     },
-    "RandConfMap":{
-            "ename":["100","2","3","default"],
-            "dname":["10","5","9","chinese"],
-            "loc":["100","10","10","province"]
+    "EnumlistMap": {
+        "province": ["Henan", "Henan", "Shandong", "Shandong", "Jiangsu", "Hubei"]
     },
-    "EnumlistMap":{
-            "province":["Henan","Henan","Shandong","Shandong","Jiangsu","Hubei"]
+    "Models": {
+        "prepaid1": 1, "prepaid2": 1, "prepaid3": 1
     },
-    "Models":[
-        {"Value": "model","Weight": 1},
-        {"Value": "model2","Weight": 1},
-        {"Value": "model3","Weight": 1}
-    ]
+    "NodeList": [{
+        "NodeAddr": "192.168.1.110:4412",
+        "Config": {
+            "out": [],
+            "out2": []
+        }
+    },
+    {
+        "NodeAddr": "192.168.1.111:4412",
+        "Config": {
+            "/home/oracle/out": ["emp25", "inf_dept"],
+            "/opt/out": ["emp24", "inf_subscriber"]
+        }
+    }]
 }
 ```
 ColumnMap   是配置各个表的列名  
-AliasMap    配置列的别名，如果有两个表有相同的列名，需要对其中一个配置别名。  
 ExcludeMap  是检测冲突时，可以对其中配置的列不进行检测。  
 RandConfMap 配置随机字符串初始化，配置值分别是 初始化数量，最小长度，最大长度，模式 
 EnumlistMap 枚举值列表 
@@ -133,17 +171,19 @@ Models      配置多个不同类型的模板，Weight是模板所占比重
 ### vardefine.json
 ```json
 {
-    "deptno":["SV6002000","10"],
-    "empno":["1000123","10"],
-    "phone_number":["188","1"]
+    "dept.deptno":["SV6002000","10"],
+    "inf_subscriber.sub_id":["SV6002000","10"],
+    "emp.empno":["1000123","10"],
+    "inf_subscriber.phone_number":["188","1"],
+    "dept.empno":["1000123","10"]
 }
 ```
 配置变量值，第二个值是针对多行记录的。
 如果有多行记录，则默认在当前配置值的数字值上加上第二个值作为新变量。
 
-## 3、使用
+## 3、使用限制
 
-导出，此工具目前只适用于Oracle。可以修改支持MySQL
+导出，此工具目前只适用于Oracle。可以修改支持MySQL，我用不到，不做了
 
 
 ```
@@ -199,7 +239,7 @@ model/emp.unl
 ```
 
 
-hello.go构造时将模板解析为：
+构造时将模板解析为：
 ```
     strslice: [ 'SV6002000' 'deptno' ',ACCOUNTING,NEW YORK,' ]
     repslice: [  0            1          0                   ]
