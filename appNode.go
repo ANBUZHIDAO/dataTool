@@ -30,7 +30,7 @@ type Response struct{
     Content string
 }
 
-var ListenAddr = "192.168.1.110:4412"
+var ListenAddr = ":4412"
 
 var appStatus = 0    
 //应用节点的状态，0 为初始状态，接收到连接后，状态改为1，
@@ -56,7 +56,6 @@ func LoadGlobaleVar(GlobalVar map[string]int) {
     TotalQua = GlobalVar["TotalQua"]
     Startvalue = GlobalVar["Startvalue"]
 
-    fmt.Printf("GlobalVar: %d %d %d %d\n",BatchQua,ModBatch,TotalQua,Startvalue) 
     LOG.Printf("GlobalVar: %d %d %d %d\n",BatchQua,ModBatch,TotalQua,Startvalue)   
 }
 
@@ -166,7 +165,10 @@ func HanldeConnect(conn net.Conn) {
         }   
     }else {
       appStatus = 1  //修改为连接中状态,此时尚未启动构造数据的Task  
-    } 
+    }
+
+    ListenAddr =  conn.LocalAddr().String()
+    fmt.Println(ListenAddr)
 	//缓冲区设置大一点。。。
     allbuf := make([]byte,0, 5120000)
 	var buf [102400]byte
@@ -241,12 +243,15 @@ func HanldeConnect(conn net.Conn) {
         }
 
     	if receive.Action == "syncConfig"{
-    		//LOG.Println(receive.Content)
+            if appStatus != 1 {
+                response := &Response{Result:"NOK", Ext:"syncConfig", Content: "处理构造任务中，禁止同步配置。"}
+                respond(conn,response) 
+                continue
+            }
     		LOG.Println(receive.Ext)
 
+            response := &Response{Result:"OK", Ext:"syncConfig", Content: "syncConfig Success"}
     		err := receiveConfig(receive.Ext,receive.Content)
-
-			response := &Response{Result:"OK", Ext:"syncConfig", Content: "syncConfig Success"}
 			if err != nil{
 				response = &Response{Result:"NOK", Ext:"syncConfig", Content: err.Error()}
 			}
