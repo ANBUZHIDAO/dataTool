@@ -103,6 +103,10 @@ vm = new Vue({
     } else {
       $.messager.alert("错误", "getNodeStatus Exception：" + Response.responseText,"error");
     }
+
+    Response = $.ajax({ url:"/getBuildStatus",async:false, dataType:'text',type:"GET"} )
+    console.log(JSON.stringify(Response));
+    self.BuildDesc = Response.responseText
     
   },
   mounted : function(){

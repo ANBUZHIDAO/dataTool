@@ -434,7 +434,7 @@ func StartTask() {
 
         t1 := time.Now()
         LOG.Printf("This Batch cost time  =%v, Begin to Load Data.\n",t1.Sub(t0))
-        //LoadData()
+        LoadData()
     }
 
     LoadendTime := time.Now()
